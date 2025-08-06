@@ -72,10 +72,3 @@ if st.session_state["companies"]:
         mime="text/csv"
     )
 '''
-
-# Save the updated dashboard
-updated_path = "/mnt/data/streamlit_dashboard_with_form.py"
-with open(updated_path, "w") as f:
-    f.write(updated_streamlit_code)
-
-updated_path
