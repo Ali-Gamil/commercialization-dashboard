@@ -66,4 +66,3 @@ if st.session_state["companies"]:
         file_name="scored_companies.csv",
         mime="text/csv"
     )
-'''
