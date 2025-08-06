@@ -1,12 +1,8 @@
-# Modify the Streamlit app to first collect input via a form (questionnaire), store it, and then display results.
-
-updated_streamlit_code = '''
 import streamlit as st
 import pandas as pd
 
 st.title("📝 Company Commercialization Scoring Form & Dashboard")
 
-# Initialize session state
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
 
@@ -38,7 +34,6 @@ with st.form("company_form"):
         })
         st.success(f"{name} added!")
 
-# If companies exist, show dashboard
 if st.session_state["companies"]:
     st.header("📊 Scoring & Ranking")
 
