@@ -96,6 +96,9 @@ if st.session_state["companies"]:
         cols = st.columns([5, 1, 1])
         cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
 
+        # Add progress bar for the score %
+        cols[0].progress(row["Score (%)"] / 100)
+
         if cols[1].button("✏️ Edit", key=f"edit_{key_prefix}"):
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
