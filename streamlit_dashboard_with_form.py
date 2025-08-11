@@ -36,6 +36,65 @@ if "editing_company" not in st.session_state:
 if "needs_rerun" not in st.session_state:
     st.session_state["needs_rerun"] = False
 
+if "uploaded_csv_files" not in st.session_state:
+    st.session_state["uploaded_csv_files"] = []
+
+# --- Sidebar: CSV Upload + List of Uploaded CSVs ---
+st.sidebar.header("📂 Upload Companies CSV")
+uploaded_file = st.sidebar.file_uploader(
+    "Upload CSV with columns: 'Company Name' and all criteria names", 
+    type=["csv"]
+)
+
+if uploaded_file is not None:
+    try:
+        df_uploaded = pd.read_csv(uploaded_file)
+
+        # Basic validation of required columns
+        required_columns = ["Company Name"] + list(criteria_info.keys())
+        missing_cols = [col for col in required_columns if col not in df_uploaded.columns]
+        if missing_cols:
+            st.sidebar.error(f"Missing required columns: {missing_cols}")
+        else:
+            # Prepare new entries
+            new_entries = []
+            for _, row in df_uploaded.iterrows():
+                # Avoid duplicate company names (case insensitive)
+                if any(c["Company Name"].lower() == str(row["Company Name"]).strip().lower() for c in st.session_state["companies"]):
+                    continue
+                entry = {"Company Name": str(row["Company Name"]).strip()}
+                # Copy scores, make sure they are integers/floats between 1 and 5
+                for crit in criteria_info.keys():
+                    try:
+                        val = float(row[crit])
+                        if val < 1:
+                            val = 1
+                        elif val > 5:
+                            val = 5
+                        entry[crit] = int(round(val))
+                    except Exception:
+                        entry[crit] = 3  # default middle score if parse fails
+                new_entries.append(entry)
+
+            if new_entries:
+                st.session_state["companies"].extend(new_entries)
+                st.session_state["needs_rerun"] = True
+
+            # Track uploaded filenames
+            filename = uploaded_file.name
+            if filename not in st.session_state["uploaded_csv_files"]:
+                st.session_state["uploaded_csv_files"].append(filename)
+
+            st.sidebar.success(f"Uploaded '{filename}' with {len(new_entries)} new companies added.")
+
+    except Exception as e:
+        st.sidebar.error(f"Error reading CSV: {e}")
+
+if st.session_state["uploaded_csv_files"]:
+    st.sidebar.markdown("### Uploaded CSV files:")
+    for f in st.session_state["uploaded_csv_files"]:
+        st.sidebar.write(f"• {f}")
+
 # --- Add New Company Form ---
 st.header("➕ Add New Company")
 with st.form("add_form"):
@@ -100,21 +159,10 @@ if st.session_state["companies"]:
                 st.session_state["editing_company"] = row["Company Name"]
 
         if cols[2].button("❌ Delete", key=f"del_{key_prefix}"):
-            # Show a confirmation expander when delete is clicked
-            st.session_state[f"confirm_delete_{key_prefix}"] = True
-
-        if st.session_state.get(f"confirm_delete_{key_prefix}", False):
-            with st.expander(f"Confirm delete '{row['Company Name']}'?"):
-                if st.button(f"Confirm Delete '{row['Company Name']}'", key=f"confirm_del_{key_prefix}"):
-                    st.session_state["companies"] = [
-                        c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]
-                    ]
-                    if st.session_state["editing_company"] == row["Company Name"]:
-                        st.session_state["editing_company"] = None
-                    st.session_state[f"confirm_delete_{key_prefix}"] = False
-                    st.session_state["needs_rerun"] = True
-                if st.button(f"Cancel", key=f"cancel_del_{key_prefix}"):
-                    st.session_state[f"confirm_delete_{key_prefix}"] = False
+            st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
+            if st.session_state["editing_company"] == row["Company Name"]:
+                st.session_state["editing_company"] = None
+            st.session_state["needs_rerun"] = True
 
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
@@ -143,7 +191,7 @@ if st.session_state["companies"]:
 
 if st.session_state.get("needs_rerun", False):
     st.session_state["needs_rerun"] = False
-    st.stop()
+    st.experimental_rerun()
 
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
