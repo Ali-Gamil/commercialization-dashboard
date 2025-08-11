@@ -56,7 +56,7 @@ def handle_file_upload():
                     df_uploaded[crit] = pd.to_numeric(df_uploaded[crit], errors='coerce').fillna(3).astype(int).clip(1,5)
                 st.session_state["companies"] = df_uploaded[expected_cols].to_dict(orient="records")
                 st.success(f"Loaded {len(st.session_state['companies'])} companies from file.")
-                st.experimental_rerun()
+                st.stop()
         except Exception as e:
             st.sidebar.error(f"Failed to load CSV: {e}")
 
@@ -93,7 +93,7 @@ def add_company_form():
             entry.update(new_scores)
             st.session_state["companies"].append(entry)
             st.success(f"Company '{new_name.strip()}' added!")
-            st.experimental_rerun()  # <--- immediate rerun after add
+            st.stop()  # <--- immediate rerun after add
 
 def display_companies():
     if not st.session_state["companies"]:
@@ -135,11 +135,11 @@ def display_companies():
                 st.session_state["editing_company"] = None
             else:
                 st.session_state["editing_company"] = row["Company Name"]
-            st.experimental_rerun()  # <--- rerun to show/hide edit form instantly
+            st.stop()  # <--- rerun to show/hide edit form instantly
 
         if cols[3].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["delete_candidate"] = row["Company Name"]
-            st.experimental_rerun()  # <--- rerun to show delete confirmation instantly
+            st.stop()  # <--- rerun to show delete confirmation instantly
 
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
@@ -158,12 +158,12 @@ def display_companies():
                             st.session_state["companies"][idx][crit] = val
                         st.success(f"Updated '{row['Company Name']}'")
                         st.session_state["editing_company"] = None
-                        st.experimental_rerun()  # <--- instant update after save
+                        st.stop()  # <--- instant update after save
                     else:
                         st.error("Company not found.")
                 if canceled:
                     st.session_state["editing_company"] = None
-                    st.experimental_rerun()  # <--- instant update after cancel
+                    st.stop()  # <--- instant update after cancel
 
 def handle_delete():
     if st.session_state.get("delete_candidate"):
@@ -175,11 +175,11 @@ def handle_delete():
                 st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != company_to_delete]
                 st.session_state["delete_candidate"] = None
                 st.success(f"Deleted company '{company_to_delete}'")
-                st.experimental_rerun()  # <--- instant update after delete
+                st.stop()  # <--- instant update after delete
         with cancel_col:
             if st.button("Cancel"):
                 st.session_state["delete_candidate"] = None
-                st.experimental_rerun()  # <--- instant update after cancel
+                st.stop()  # <--- instant update after cancel
 # Main flow
 init_session_state()
 handle_file_upload()
