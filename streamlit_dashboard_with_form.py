@@ -27,7 +27,7 @@ weights = {
 
 assert abs(sum(weights.values()) - 1.0) < 1e-6, "Weights must sum to 1.0"
 
-# Initialize session state
+# Initialize session state keys
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
 
@@ -36,6 +36,16 @@ if "original_csv" not in st.session_state:
 
 if "editing_company" not in st.session_state:
     st.session_state["editing_company"] = None
+
+if "rerun_flag" not in st.session_state:
+    st.session_state["rerun_flag"] = False
+
+# Helper to force a rerun by toggling rerun_flag
+def force_rerun():
+    st.session_state.rerun_flag = not st.session_state.rerun_flag
+
+# Reference rerun_flag so Streamlit sees its usage and triggers rerun on change
+_ = st.session_state.rerun_flag
 
 # --- CSV Upload in Sidebar ---
 st.sidebar.header("🔄 Upload Companies CSV")
@@ -55,6 +65,7 @@ if uploaded_file:
             st.session_state["original_csv"] = uploaded_file.getvalue()
             st.success(f"Loaded {len(st.session_state['companies'])} companies from uploaded CSV")
             st.session_state["editing_company"] = None
+            force_rerun()
     except Exception as e:
         st.sidebar.error(f"Failed to read CSV: {e}")
 
@@ -89,6 +100,7 @@ with st.form("add_form"):
             st.session_state["companies"].append(entry)
             st.success(f"Company '{new_name.strip()}' added!")
             st.session_state["editing_company"] = None
+            force_rerun()
 
 # Search Bar
 search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
@@ -135,11 +147,13 @@ if st.session_state["companies"]:
                 st.session_state["editing_company"] = None
             else:
                 st.session_state["editing_company"] = row["Company Name"]
+            force_rerun()
 
         if cols[3].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
+            force_rerun()
 
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
@@ -161,8 +175,10 @@ if st.session_state["companies"]:
                         st.session_state["companies"] = companies_copy
                         st.success(f"Updated '{row['Company Name']}'")
                         st.session_state["editing_company"] = None
+                        force_rerun()
                 if canceled:
                     st.session_state["editing_company"] = None
+                    force_rerun()
 
 # Download scored companies CSV
 if st.session_state["companies"]:
