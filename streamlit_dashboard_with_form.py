@@ -1,8 +1,13 @@
 import streamlit as st
 import pandas as pd
-import io
 
 def main():
+    # --- Early rerun check ---
+    if st.session_state.get("needs_rerun", False):
+        st.session_state["needs_rerun"] = False
+        st.experimental_rerun()
+        return
+
     st.set_page_config(layout="wide")
     st.title("📝 Company Commercialization Scoring Dashboard")
 
@@ -38,36 +43,8 @@ def main():
         st.session_state["editing_company"] = None
     if "delete_candidate" not in st.session_state:
         st.session_state["delete_candidate"] = None
-    if "edited" not in st.session_state:
-        st.session_state["edited"] = False
-    if "deleted" not in st.session_state:
-        st.session_state["deleted"] = False
-    if "added" not in st.session_state:
-        st.session_state["added"] = False
 
-    # --- Data Upload ---
-    st.sidebar.header("🔄 Upload / Download Dataset")
-    uploaded_file = st.sidebar.file_uploader("Upload CSV to load companies", type=["csv"])
-    if uploaded_file:
-        try:
-            df_uploaded = pd.read_csv(uploaded_file)
-            expected_cols = ["Company Name"] + list(criteria_info.keys())
-            if not all(col in df_uploaded.columns for col in expected_cols):
-                st.sidebar.error(f"CSV missing required columns: {expected_cols}")
-            else:
-                st.session_state["companies"] = df_uploaded[expected_cols].to_dict(orient="records")
-                st.success(f"Loaded {len(st.session_state['companies'])} companies from file.")
-        except Exception as e:
-            st.sidebar.error(f"Failed to load CSV: {e}")
-
-    # --- Data Download ---
-    if st.session_state["companies"]:
-        df_download = pd.DataFrame(st.session_state["companies"])
-        df_download["Score (%)"] = df_download.apply(compute_score, axis=1)
-        csv_data = df_download.to_csv(index=False).encode('utf-8')
-        st.sidebar.download_button("📥 Download CSV", data=csv_data, file_name="companies.csv", mime="text/csv")
-
-    # --- Add Company ---
+    # --- Add Company Form ---
     st.header("➕ Add New Company")
     with st.form("add_form"):
         new_name = st.text_input("Company Name")
@@ -88,24 +65,16 @@ def main():
                 entry.update(new_scores)
                 st.session_state["companies"].append(entry)
                 st.success(f"Company '{new_name.strip()}' added!")
-                st.session_state["added"] = True
                 st.session_state["editing_company"] = None
+                st.session_state["needs_rerun"] = True
 
-    # Trigger rerun if added
-    if st.session_state.get("added", False):
-        st.session_state["added"] = False
-        st.experimental_rerun()
-        return
-
-    # --- Search Filter ---
-    search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
-
-    # --- Main Table ---
+    # --- Display Companies ---
     if st.session_state["companies"]:
         df = pd.DataFrame(st.session_state["companies"])
         df["Score (%)"] = df.apply(compute_score, axis=1)
         df["Rank"] = df["Score (%)"].rank(ascending=False, method="min").astype(int)
 
+        search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
         if search_term:
             df = df[df["Company Name"].str.lower().str.contains(search_term)]
 
@@ -119,17 +88,15 @@ def main():
             df = df.sort_values(["Score (%)", "Company Name"], ascending=[False, True])
         else:
             df = df.assign(SortKey=df["Company Name"].str.lower())
-            df = df.sort_values("SortKey")
-            df = df.drop(columns=["SortKey"])
+            df = df.sort_values("SortKey").drop(columns=["SortKey"])
 
         st.header(f"📊 Company Scores & Ranking ({len(df)} shown)")
 
-        for idx, row in df.reset_index(drop=True).iterrows():
+        for _, row in df.iterrows():
             key_prefix = f"company_{row['Company Name']}"
             cols = st.columns([5, 2, 1, 1])
             cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
-            score = row["Score (%)"]
-            cols[1].progress(min(score / 100, 1.0))
+            cols[1].progress(min(row["Score (%)"] / 100, 1.0))
 
             if cols[2].button("✏️ Edit", key=f"edit_{key_prefix}"):
                 if st.session_state["editing_company"] == row["Company Name"]:
@@ -150,32 +117,20 @@ def main():
                     submitted = st.form_submit_button("Save Changes")
                     canceled = st.form_submit_button("Cancel")
                     if submitted:
-                        idx_to_update = None
-                        for i, comp in enumerate(st.session_state["companies"]):
-                            if comp["Company Name"] == row["Company Name"]:
-                                idx_to_update = i
-                                break
+                        idx_to_update = next((i for i, c in enumerate(st.session_state["companies"]) if c["Company Name"] == row["Company Name"]), None)
                         if idx_to_update is not None:
-                            companies_copy = st.session_state["companies"].copy()
                             for crit, val in edited_scores.items():
-                                companies_copy[idx_to_update][crit] = val
-                            st.session_state["companies"] = companies_copy
+                                st.session_state["companies"][idx_to_update][crit] = val
                             st.success(f"Updated '{row['Company Name']}'")
                             st.session_state["editing_company"] = None
-                            st.session_state["edited"] = True
+                            st.session_state["needs_rerun"] = True
                         else:
                             st.error("Company not found.")
                     if canceled:
                         st.session_state["editing_company"] = None
 
-    # Trigger rerun if edited
-    if st.session_state.get("edited", False):
-        st.session_state["edited"] = False
-        st.experimental_rerun()
-        return
-
-    # Delete confirmation
-    if st.session_state.get("delete_candidate", None):
+    # --- Delete Confirmation ---
+    if st.session_state.get("delete_candidate"):
         company_to_delete = st.session_state["delete_candidate"]
         st.warning(f"Are you sure you want to delete **{company_to_delete}**? This action cannot be undone.")
         confirm_col, cancel_col = st.columns(2)
@@ -184,19 +139,10 @@ def main():
                 st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != company_to_delete]
                 st.session_state["delete_candidate"] = None
                 st.success(f"Deleted company '{company_to_delete}'")
-                st.session_state["deleted"] = True
+                st.session_state["needs_rerun"] = True
         with cancel_col:
             if st.button("Cancel"):
                 st.session_state["delete_candidate"] = None
-
-    # Trigger rerun if deleted
-    if st.session_state.get("deleted", False):
-        st.session_state["deleted"] = False
-        st.experimental_rerun()
-        return
-
-    if not st.session_state["companies"]:
-        st.info("No companies added yet. Use the form above or upload a dataset.")
 
 if __name__ == "__main__":
     main()
