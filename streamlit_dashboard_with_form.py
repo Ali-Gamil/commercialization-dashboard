@@ -14,16 +14,15 @@ criteria_info = {
     "Uniqueness": "Originality and rarity of product/service in market"
 }
 
-# Weights in multiples of 0.05, sum to 1.0
 weights = {
-    "Business Model": 0.10,           # Changed from 0.15 to 0.10
+    "Business Model": 0.10,
     "Competitive Advantage": 0.10,
     "Customer Validation": 0.10,
     "Go-to-Market Readiness": 0.10,
     "Market Opportunity": 0.20,
-    "Product Feasibility": 0.15,      # Changed from 0.15 to 0.15 (kept)
+    "Product Feasibility": 0.15,
     "Revenue Potential": 0.20,
-    "Uniqueness": 0.05                # Reduced from 0.10 to 0.05 to fit
+    "Uniqueness": 0.05
 }
 
 assert abs(sum(weights.values()) - 1.0) < 1e-6, "Weights must sum to 1.0"
@@ -68,7 +67,7 @@ if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
 
     def compute_score(row):
-        return round(sum(row[col] * weights[col] for col in weights) * 20, 2)  # 5-point scale * 20 = 100 max
+        return round(sum(row[col] * weights[col] for col in weights) * 20, 2)
 
     df["Score (%)"] = df.apply(compute_score, axis=1)
     df["Rank"] = df["Score (%)"].rank(ascending=False, method="min").astype(int)
@@ -82,7 +81,9 @@ if st.session_state["companies"]:
     if sort_option == "Rank (highest score first)":
         df = df.sort_values(["Score (%)", "Company Name"], ascending=[False, True])
     else:
-        df = df.sort_values("Company Name")
+        df = df.assign(SortKey=df["Company Name"].str.lower())
+        df = df.sort_values("SortKey")
+        df = df.drop(columns=["SortKey"])
 
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
@@ -90,18 +91,23 @@ if st.session_state["companies"]:
         cols = st.columns([5, 1, 1])
         cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
 
-        # Toggle edit mode on/off with one click
-        if cols[1].button("✏️ Edit", key=f"edit_{key_prefix}"):
+        # Checkbox toggle for edit menu (one click open/close)
+        edit_toggle = cols[1].checkbox(
+            "✏️ Edit",
+            value=(st.session_state["editing_company"] == row["Company Name"]),
+            key=f"edit_chk_{key_prefix}"
+        )
+        if edit_toggle:
+            st.session_state["editing_company"] = row["Company Name"]
+        else:
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
-            else:
-                st.session_state["editing_company"] = row["Company Name"]
 
         if cols[2].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
-            st.session_state["needs_rerun"] = True
+            st.experimental_rerun()  # Force immediate refresh on delete
 
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
