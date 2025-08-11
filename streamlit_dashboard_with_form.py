@@ -93,12 +93,9 @@ if st.session_state["companies"]:
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
 
-        # Columns: Text, Progress bar, Edit, Delete
-        cols = st.columns([5, 1, 1, 1])
-
-        # Company name, rank, score
+        # Adjusted columns: more space to text and progress bar
+        cols = st.columns([4, 3, 1, 1])
         cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
-        # Progress bar showing score percentage
         cols[1].progress(row["Score (%)"] / 100)
 
         if cols[2].button("✏️ Edit", key=f"edit_{key_prefix}"):
@@ -107,11 +104,9 @@ if st.session_state["companies"]:
             else:
                 st.session_state["editing_company"] = row["Company Name"]
 
-        # Delete button triggers candidate setting
         if cols[3].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["delete_candidate"] = row["Company Name"]
 
-        # Show confirmation only if this company is delete_candidate
         if st.session_state.get("delete_candidate") == row["Company Name"]:
             confirm_cols = st.columns([5, 1, 1])
             confirm_cols[0].warning(f"Confirm deletion of **{row['Company Name']}**?")
@@ -152,7 +147,7 @@ if st.session_state["companies"]:
 
 if st.session_state.get("needs_rerun", False):
     st.session_state["needs_rerun"] = False
-    st.stop()  # stop execution immediately; user actions will naturally trigger rerun
+    st.stop()
 
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
