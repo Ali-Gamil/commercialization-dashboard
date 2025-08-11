@@ -180,11 +180,3 @@ def handle_delete():
             if st.button("Cancel"):
                 st.session_state["delete_candidate"] = None
                 st.experimental_rerun()  # <--- instant update after cancel
-
-# Main flow
-init_session_state()
-handle_file_upload()
-provide_csv_download()
-add_company_form()
-display_companies()
-handle_delete()
