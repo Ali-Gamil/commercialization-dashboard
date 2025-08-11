@@ -27,7 +27,7 @@ weights = {
 
 assert abs(sum(weights.values()) - 1.0) < 1e-6, "Weights must sum to 1.0"
 
-# Initialize session state variables
+# --- Initialize session state ---
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
 
@@ -40,15 +40,16 @@ if "editing_company" not in st.session_state:
 if "needs_rerun" not in st.session_state:
     st.session_state["needs_rerun"] = False
 
-# --- CSV Upload ---
+# --- CSV Upload in Sidebar ---
 st.sidebar.header("🔄 Upload Companies CSV")
 uploaded_file = st.sidebar.file_uploader("Upload CSV with companies and scores", type=["csv"])
 if uploaded_file:
     try:
         df_uploaded = pd.read_csv(uploaded_file)
         required_columns = ["Company Name"] + list(criteria_info.keys())
-        if not all(col in df_uploaded.columns for col in required_columns):
-            st.sidebar.error(f"CSV missing required columns: {required_columns}")
+        missing_cols = [col for col in required_columns if col not in df_uploaded.columns]
+        if missing_cols:
+            st.sidebar.error(f"CSV missing required columns: {missing_cols}")
         else:
             # Clean and convert criteria columns to int 1-5
             for crit in criteria_info.keys():
@@ -61,7 +62,7 @@ if uploaded_file:
     except Exception as e:
         st.sidebar.error(f"Failed to read CSV: {e}")
 
-# --- CSV Download of original uploaded file ---
+# --- Download Original Uploaded CSV ---
 if st.session_state["original_csv"] is not None:
     st.sidebar.download_button(
         label="📥 Download Original Uploaded CSV",
@@ -74,13 +75,11 @@ if st.session_state["original_csv"] is not None:
 st.header("➕ Add New Company")
 with st.form("add_form"):
     new_name = st.text_input("Company Name")
-
     new_scores = {}
     for crit, desc in sorted(criteria_info.items()):
         weight_pct = int(weights[crit] * 100)
         label = f"{crit} ({weight_pct}%) — {desc}"
         new_scores[crit] = st.slider(label, 1, 5, 3)
-
     add_submitted = st.form_submit_button("Add Company")
 
     if add_submitted:
@@ -99,7 +98,7 @@ with st.form("add_form"):
 # --- Search Bar ---
 search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
 
-# --- Scoring & Ranking Table with Edit and Delete buttons ---
+# --- Scoring & Ranking Table with Edit/Delete buttons ---
 if st.session_state["companies"]:
     st.header("📊 Company Scores & Ranking")
 
@@ -111,7 +110,7 @@ if st.session_state["companies"]:
     df["Score (%)"] = df.apply(compute_score, axis=1)
     df["Rank"] = df["Score (%)"].rank(ascending=False, method="min").astype(int)
 
-    # Filter by search term if provided
+    # Filter by search term
     if search_term:
         df = df[df["Company Name"].str.lower().str.contains(search_term)]
 
@@ -173,10 +172,6 @@ if st.session_state["companies"]:
                     st.session_state["editing_company"] = None
                     st.session_state["needs_rerun"] = True
 
-if st.session_state.get("needs_rerun", False):
-    st.session_state["needs_rerun"] = False
-    st.experimental_rerun()
-
 # --- Download scored companies CSV ---
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
@@ -187,3 +182,8 @@ if st.session_state["companies"]:
         file_name="scored_companies.csv",
         mime="text/csv"
     )
+
+# --- Finally, rerun if needed ---
+if st.session_state.get("needs_rerun", False):
+    st.session_state["needs_rerun"] = False
+    st.experimental_rerun()
