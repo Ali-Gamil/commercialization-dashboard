@@ -30,11 +30,66 @@ assert abs(sum(weights.values()) - 1.0) < 1e-6, "Weights must sum to 1.0"
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
 
+if "original_csv" not in st.session_state:
+    st.session_state["original_csv"] = None
+
 if "editing_company" not in st.session_state:
     st.session_state["editing_company"] = None
 
 if "needs_rerun" not in st.session_state:
     st.session_state["needs_rerun"] = False
+
+if "company_to_delete" not in st.session_state:
+    st.session_state["company_to_delete"] = None
+
+# --- CSV Upload in Sidebar ---
+st.sidebar.header("🔄 Upload Companies CSV")
+uploaded_file = st.sidebar.file_uploader("Upload CSV with companies and scores", type=["csv"])
+if uploaded_file:
+    try:
+        df_uploaded = pd.read_csv(uploaded_file)
+        required_columns = ["Company Name"] + list(criteria_info.keys())
+        missing_cols = [col for col in required_columns if col not in df_uploaded.columns]
+        if missing_cols:
+            st.sidebar.error(f"CSV missing required columns: {missing_cols}")
+        else:
+            # Clean and convert criteria columns to int 1-5
+            for crit in criteria_info.keys():
+                df_uploaded[crit] = pd.to_numeric(df_uploaded[crit], errors='coerce').fillna(3).astype(int).clip(1, 5)
+            # Append uploaded companies to existing list, avoid duplicates by name (case insensitive)
+            existing_names = {c["Company Name"].lower() for c in st.session_state["companies"]}
+            new_companies = []
+            for _, row in df_uploaded.iterrows():
+                cname = row["Company Name"].strip()
+                if cname.lower() not in existing_names:
+                    entry = {"Company Name": cname}
+                    for crit in criteria_info.keys():
+                        entry[crit] = row[crit]
+                    new_companies.append(entry)
+                    existing_names.add(cname.lower())
+            if new_companies:
+                st.session_state["companies"].extend(new_companies)
+                st.success(f"Added {len(new_companies)} companies from uploaded CSV")
+            else:
+                st.info("No new companies were added from the uploaded CSV")
+            # Save original CSV content for download
+            st.session_state["original_csv"] = uploaded_file.getvalue()
+            st.session_state["editing_company"] = None
+            st.session_state["needs_rerun"] = True
+    except Exception as e:
+        st.sidebar.error(f"Failed to read CSV: {e}")
+
+# Download Original Uploaded CSV
+if st.session_state["original_csv"] is not None:
+    st.sidebar.download_button(
+        label="📥 Download Original Uploaded CSV",
+        data=st.session_state["original_csv"],
+        file_name="original_companies.csv",
+        mime="text/csv",
+    )
+
+# --- Search Bar ---
+search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
 
 # --- Add New Company Form ---
 st.header("➕ Add New Company")
@@ -74,6 +129,10 @@ if st.session_state["companies"]:
     df["Score (%)"] = df.apply(compute_score, axis=1)
     df["Rank"] = df["Score (%)"].rank(ascending=False, method="min").astype(int)
 
+    # Filter by search term
+    if search_term:
+        df = df[df["Company Name"].str.lower().str.contains(search_term)]
+
     sort_option = st.radio(
         "Sort companies by:",
         ("Rank (highest score first)", "Alphabetical (Company Name)"),
@@ -97,10 +156,10 @@ if st.session_state["companies"]:
                 st.session_state["editing_company"] = None
             else:
                 st.session_state["editing_company"] = row["Company Name"]
+            st.session_state["needs_rerun"] = True
         if cols[2].button("❌ Delete", key=f"del_{key_prefix}"):
-            st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
-            if st.session_state["editing_company"] == row["Company Name"]:
-                st.session_state["editing_company"] = None
+            # Ask for confirmation before deleting
+            st.session_state["company_to_delete"] = row["Company Name"]
             st.session_state["needs_rerun"] = True
 
         if st.session_state["editing_company"] == row["Company Name"]:
@@ -128,10 +187,24 @@ if st.session_state["companies"]:
                     st.session_state["editing_company"] = None
                     st.session_state["needs_rerun"] = True
 
+# --- Delete confirmation dialog ---
+if st.session_state["company_to_delete"]:
+    company_name = st.session_state["company_to_delete"]
+    if st.sidebar.button(f"Confirm Delete '{company_name}'"):
+        st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != company_name]
+        st.session_state["company_to_delete"] = None
+        st.session_state["needs_rerun"] = True
+        st.experimental_rerun()  # Remove or replace if deprecated, but can keep here if working
+    if st.sidebar.button("Cancel Delete"):
+        st.session_state["company_to_delete"] = None
+        st.session_state["needs_rerun"] = True
+        st.experimental_rerun()
+
 if st.session_state.get("needs_rerun", False):
     st.session_state["needs_rerun"] = False
     st.stop()
 
+# --- Download scored companies CSV ---
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
     df["Score (%)"] = df.apply(lambda row: round(sum(row[col] * weights[col] for col in weights) * 20, 2), axis=1)
