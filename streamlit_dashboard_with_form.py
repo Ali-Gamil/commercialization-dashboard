@@ -156,10 +156,12 @@ if st.session_state["companies"]:
                         st.success(f"Updated '{row['Company Name']}'")
                         st.session_state["editing_company"] = None
                         st.experimental_rerun()
+                        return
                     else:
                         st.error("Company not found.")
                 if canceled:
                     st.session_state["editing_company"] = None
+                    return
 
 # Delete confirmation
 if st.session_state.get("delete_candidate", None):
@@ -172,9 +174,11 @@ if st.session_state.get("delete_candidate", None):
             st.session_state["delete_candidate"] = None
             st.success(f"Deleted company '{company_to_delete}'")
             st.experimental_rerun()
+            return
     with cancel_col:
         if st.button("Cancel"):
             st.session_state["delete_candidate"] = None
+            return
 
 if not st.session_state["companies"]:
     st.info("No companies added yet. Use the form above or upload a dataset.")
