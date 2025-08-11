@@ -27,7 +27,7 @@ weights = {
 
 assert abs(sum(weights.values()) - 1.0) < 1e-6, "Weights must sum to 1.0"
 
-# --- Initialize session state ---
+# Initialize session state
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
 
@@ -36,9 +36,6 @@ if "original_csv" not in st.session_state:
 
 if "editing_company" not in st.session_state:
     st.session_state["editing_company"] = None
-
-if "needs_rerun" not in st.session_state:
-    st.session_state["needs_rerun"] = False
 
 # --- CSV Upload in Sidebar ---
 st.sidebar.header("🔄 Upload Companies CSV")
@@ -58,11 +55,10 @@ if uploaded_file:
             st.session_state["original_csv"] = uploaded_file.getvalue()
             st.success(f"Loaded {len(st.session_state['companies'])} companies from uploaded CSV")
             st.session_state["editing_company"] = None
-            st.session_state["needs_rerun"] = True
     except Exception as e:
         st.sidebar.error(f"Failed to read CSV: {e}")
 
-# --- Download Original Uploaded CSV ---
+# Download Original Uploaded CSV
 if st.session_state["original_csv"] is not None:
     st.sidebar.download_button(
         label="📥 Download Original Uploaded CSV",
@@ -71,7 +67,7 @@ if st.session_state["original_csv"] is not None:
         mime="text/csv",
     )
 
-# --- Add New Company Form ---
+# Add New Company Form
 st.header("➕ Add New Company")
 with st.form("add_form"):
     new_name = st.text_input("Company Name")
@@ -93,12 +89,11 @@ with st.form("add_form"):
             st.session_state["companies"].append(entry)
             st.success(f"Company '{new_name.strip()}' added!")
             st.session_state["editing_company"] = None
-            st.session_state["needs_rerun"] = True
 
-# --- Search Bar ---
+# Search Bar
 search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
 
-# --- Scoring & Ranking Table with Edit/Delete buttons ---
+# Company Scores & Ranking
 if st.session_state["companies"]:
     st.header("📊 Company Scores & Ranking")
 
@@ -135,17 +130,16 @@ if st.session_state["companies"]:
         cols[1].progress(min(row["Score (%)"] / 100, 1.0))
 
         if cols[2].button("✏️ Edit", key=f"edit_{key_prefix}"):
+            # Toggle edit mode for the clicked company
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
             else:
                 st.session_state["editing_company"] = row["Company Name"]
-            st.session_state["needs_rerun"] = True
 
         if cols[3].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
-            st.session_state["needs_rerun"] = True
 
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
@@ -167,12 +161,10 @@ if st.session_state["companies"]:
                         st.session_state["companies"] = companies_copy
                         st.success(f"Updated '{row['Company Name']}'")
                         st.session_state["editing_company"] = None
-                        st.session_state["needs_rerun"] = True
                 if canceled:
                     st.session_state["editing_company"] = None
-                    st.session_state["needs_rerun"] = True
 
-# --- Download scored companies CSV ---
+# Download scored companies CSV
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
     df["Score (%)"] = df.apply(lambda row: round(sum(row[col] * weights[col] for col in weights) * 20, 2), axis=1)
@@ -182,8 +174,3 @@ if st.session_state["companies"]:
         file_name="scored_companies.csv",
         mime="text/csv"
     )
-
-# --- Finally, rerun if needed ---
-if st.session_state.get("needs_rerun", False):
-    st.session_state["needs_rerun"] = False
-    st.experimental.rerun()
