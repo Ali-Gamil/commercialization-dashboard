@@ -27,6 +27,7 @@ weights = {
 
 assert abs(sum(weights.values()) - 1.0) < 1e-6, "Weights must sum to 1.0"
 
+# Initialize session state variables if missing
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
 
@@ -38,6 +39,9 @@ if "needs_rerun" not in st.session_state:
 
 if "uploaded_csv_files" not in st.session_state:
     st.session_state["uploaded_csv_files"] = []
+
+if "uploaded_csv_data" not in st.session_state:
+    st.session_state["uploaded_csv_data"] = []  # store merged CSV companies here
 
 # --- Sidebar: CSV Upload + List of Uploaded CSVs ---
 st.sidebar.header("📂 Upload Companies CSV")
@@ -56,28 +60,24 @@ if uploaded_file is not None:
         if missing_cols:
             st.sidebar.error(f"Missing required columns: {missing_cols}")
         else:
-            # Prepare new entries
             new_entries = []
             for _, row in df_uploaded.iterrows():
-                # Avoid duplicate company names (case insensitive)
+                # Avoid duplicates (case insensitive)
                 if any(c["Company Name"].lower() == str(row["Company Name"]).strip().lower() for c in st.session_state["companies"]):
                     continue
                 entry = {"Company Name": str(row["Company Name"]).strip()}
-                # Copy scores, make sure they are integers/floats between 1 and 5
                 for crit in criteria_info.keys():
                     try:
                         val = float(row[crit])
-                        if val < 1:
-                            val = 1
-                        elif val > 5:
-                            val = 5
+                        val = max(1, min(5, val))  # clamp between 1 and 5
                         entry[crit] = int(round(val))
                     except Exception:
-                        entry[crit] = 3  # default middle score if parse fails
+                        entry[crit] = 3  # default if invalid
                 new_entries.append(entry)
 
             if new_entries:
                 st.session_state["companies"].extend(new_entries)
+                st.session_state["uploaded_csv_data"].extend(new_entries)
                 st.session_state["needs_rerun"] = True
 
             # Track uploaded filenames
@@ -87,9 +87,14 @@ if uploaded_file is not None:
 
             st.sidebar.success(f"Uploaded '{filename}' with {len(new_entries)} new companies added.")
 
+        # Clear uploaded_file to prevent multiple reads on rerun
+        st.session_state["_uploaded_file_processed"] = True
+        del uploaded_file  # remove reference to uploaded_file
+
     except Exception as e:
         st.sidebar.error(f"Error reading CSV: {e}")
 
+# Display list of uploaded CSV filenames
 if st.session_state["uploaded_csv_files"]:
     st.sidebar.markdown("### Uploaded CSV files:")
     for f in st.session_state["uploaded_csv_files"]:
