@@ -25,13 +25,14 @@ weights = {
     "Uniqueness": 0.10
 }
 
-# Initialize companies list in session state
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
 
-# Track which company is currently being edited (show edit form below that row)
 if "editing_company" not in st.session_state:
     st.session_state["editing_company"] = None
+
+if "needs_rerun" not in st.session_state:
+    st.session_state["needs_rerun"] = False
 
 # --- Add New Company Form ---
 st.header("➕ Add New Company")
@@ -55,6 +56,7 @@ with st.form("add_form"):
             st.session_state["companies"].append(entry)
             st.success(f"Company '{new_name.strip()}' added!")
             st.session_state["editing_company"] = None
+            st.session_state["needs_rerun"] = True
 
 # --- Scoring & Ranking Table with Edit and Delete buttons ---
 if st.session_state["companies"]:
@@ -82,7 +84,6 @@ if st.session_state["companies"]:
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
 
-        # Display the company info row with Edit and Delete buttons
         cols = st.columns([5, 1, 1])
         cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
         if cols[1].button("✏️ Edit", key=f"edit_{key_prefix}"):
@@ -91,9 +92,8 @@ if st.session_state["companies"]:
             st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
-            st.experimental_rerun()
+            st.session_state["needs_rerun"] = True
 
-        # If this company is currently being edited, show the edit form below
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
                 edited_scores = {}
@@ -102,18 +102,28 @@ if st.session_state["companies"]:
                 submitted = st.form_submit_button("Save Changes")
                 canceled = st.form_submit_button("Cancel")
                 if submitted:
-                    # Safely update the company scores
-                    idx_to_update = next(i for i, c in enumerate(st.session_state["companies"]) if c["Company Name"] == row["Company Name"])
-                    companies_copy = st.session_state["companies"].copy()
-                    companies_copy[idx_to_update].update(edited_scores)
-                    st.session_state["companies"] = companies_copy
-                    st.success(f"Updated '{row['Company Name']}'")
-                    st.session_state["editing_company"] = None
-                    st.experimental_rerun()
+                    try:
+                        idx_to_update = next(i for i, c in enumerate(st.session_state["companies"]) if c["Company Name"] == row["Company Name"])
+                    except StopIteration:
+                        st.error("Error: Company not found in session state.")
+                    else:
+                        companies_copy = st.session_state["companies"].copy()
+                        companies_copy[idx_to_update].update(edited_scores)
+                        st.session_state["companies"] = companies_copy
+                        st.success(f"Updated '{row['Company Name']}'")
+                        st.session_state["editing_company"] = None
+                        st.session_state["needs_rerun"] = True
                 if canceled:
                     st.session_state["editing_company"] = None
-                    st.experimental_rerun()
+                    st.session_state["needs_rerun"] = True
 
+if st.session_state.get("needs_rerun", False):
+    st.session_state["needs_rerun"] = False
+    st.experimental_rerun()
+
+if st.session_state["companies"]:
+    df = pd.DataFrame(st.session_state["companies"])
+    df["Score (%)"] = df.apply(lambda row: round(sum(row[col] * weights[col] for col in weights) * 20, 2), axis=1)
     st.download_button(
         label="📥 Download Scored CSV",
         data=df.to_csv(index=False).encode("utf-8"),
