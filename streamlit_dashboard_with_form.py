@@ -102,11 +102,11 @@ if st.session_state["companies"]:
                 submitted = st.form_submit_button("Save Changes")
                 canceled = st.form_submit_button("Cancel")
                 if submitted:
-                    # Update the company scores
-                    for c in st.session_state["companies"]:
-                        if c["Company Name"] == row["Company Name"]:
-                            c.update(edited_scores)
-                            break
+                    # Safely update the company scores
+                    idx_to_update = next(i for i, c in enumerate(st.session_state["companies"]) if c["Company Name"] == row["Company Name"])
+                    companies_copy = st.session_state["companies"].copy()
+                    companies_copy[idx_to_update].update(edited_scores)
+                    st.session_state["companies"] = companies_copy
                     st.success(f"Updated '{row['Company Name']}'")
                     st.session_state["editing_company"] = None
                     st.experimental_rerun()
