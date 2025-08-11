@@ -147,7 +147,7 @@ if st.session_state["companies"]:
 
 if st.session_state.get("needs_rerun", False):
     st.session_state["needs_rerun"] = False
-    st.experimental_rerun()
+    st.stop()  # stop execution immediately; user actions will naturally trigger rerun
 
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
