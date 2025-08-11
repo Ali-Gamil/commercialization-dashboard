@@ -31,14 +31,19 @@ def main():
     def compute_score(row):
         return round(sum(row[col] * weights[col] for col in weights) * 20, 2)
 
+    # Initialize session state variables
     if "companies" not in st.session_state:
         st.session_state["companies"] = []
-
     if "editing_company" not in st.session_state:
         st.session_state["editing_company"] = None
-
     if "delete_candidate" not in st.session_state:
         st.session_state["delete_candidate"] = None
+    if "edited" not in st.session_state:
+        st.session_state["edited"] = False
+    if "deleted" not in st.session_state:
+        st.session_state["deleted"] = False
+    if "added" not in st.session_state:
+        st.session_state["added"] = False
 
     # --- Data Upload ---
     st.sidebar.header("🔄 Upload / Download Dataset")
@@ -59,7 +64,6 @@ def main():
     if st.session_state["companies"]:
         df_download = pd.DataFrame(st.session_state["companies"])
         df_download["Score (%)"] = df_download.apply(compute_score, axis=1)
-
         csv_data = df_download.to_csv(index=False).encode('utf-8')
         st.sidebar.download_button("📥 Download CSV", data=csv_data, file_name="companies.csv", mime="text/csv")
 
@@ -67,13 +71,11 @@ def main():
     st.header("➕ Add New Company")
     with st.form("add_form"):
         new_name = st.text_input("Company Name")
-
         new_scores = {}
         for crit, desc in sorted(criteria_info.items()):
             weight_pct = int(weights[crit]*100)
             label = f"{crit} ({weight_pct}%) — {desc}"
             new_scores[crit] = st.slider(label, 1, 5, 3, key=f"add_{crit}")
-
         add_submitted = st.form_submit_button("Add Company")
 
         if add_submitted:
@@ -86,7 +88,14 @@ def main():
                 entry.update(new_scores)
                 st.session_state["companies"].append(entry)
                 st.success(f"Company '{new_name.strip()}' added!")
+                st.session_state["added"] = True
                 st.session_state["editing_company"] = None
+
+    # Trigger rerun if added
+    if st.session_state.get("added", False):
+        st.session_state["added"] = False
+        st.experimental_rerun()
+        return
 
     # --- Search Filter ---
     search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
@@ -97,7 +106,6 @@ def main():
         df["Score (%)"] = df.apply(compute_score, axis=1)
         df["Rank"] = df["Score (%)"].rank(ascending=False, method="min").astype(int)
 
-        # Filter by search
         if search_term:
             df = df[df["Company Name"].str.lower().str.contains(search_term)]
 
@@ -118,10 +126,8 @@ def main():
 
         for idx, row in df.reset_index(drop=True).iterrows():
             key_prefix = f"company_{row['Company Name']}"
-
             cols = st.columns([5, 2, 1, 1])
             cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
-
             score = row["Score (%)"]
             cols[1].progress(min(score / 100, 1.0))
 
@@ -156,13 +162,17 @@ def main():
                             st.session_state["companies"] = companies_copy
                             st.success(f"Updated '{row['Company Name']}'")
                             st.session_state["editing_company"] = None
-                            st.experimental_rerun()
-                            return
+                            st.session_state["edited"] = True
                         else:
                             st.error("Company not found.")
                     if canceled:
                         st.session_state["editing_company"] = None
-                        return
+
+    # Trigger rerun if edited
+    if st.session_state.get("edited", False):
+        st.session_state["edited"] = False
+        st.experimental_rerun()
+        return
 
     # Delete confirmation
     if st.session_state.get("delete_candidate", None):
@@ -174,12 +184,16 @@ def main():
                 st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != company_to_delete]
                 st.session_state["delete_candidate"] = None
                 st.success(f"Deleted company '{company_to_delete}'")
-                st.experimental_rerun()
-                return
+                st.session_state["deleted"] = True
         with cancel_col:
             if st.button("Cancel"):
                 st.session_state["delete_candidate"] = None
-                return
+
+    # Trigger rerun if deleted
+    if st.session_state.get("deleted", False):
+        st.session_state["deleted"] = False
+        st.experimental_rerun()
+        return
 
     if not st.session_state["companies"]:
         st.info("No companies added yet. Use the form above or upload a dataset.")
