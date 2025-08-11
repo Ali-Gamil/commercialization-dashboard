@@ -62,15 +62,6 @@ if st.session_state["companies"]:
     csv_data = df_download.to_csv(index=False).encode('utf-8')
     st.sidebar.download_button("📥 Download CSV", data=csv_data, file_name="companies.csv", mime="text/csv")
 
-    # Excel export
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df_download.to_excel(writer, index=False, sheet_name='Companies')
-        writer.save()
-    excel_data = output.getvalue()
-
-    st.sidebar.download_button("📥 Download Excel", data=excel_data, file_name="companies.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 # --- Add Company ---
 st.header("➕ Add New Company")
 with st.form("add_form"):
