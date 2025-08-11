@@ -143,14 +143,19 @@ if st.session_state["companies"]:
                 submitted = st.form_submit_button("Save Changes")
                 canceled = st.form_submit_button("Cancel")
                 if submitted:
-                    idx_to_update = df.index[df["Company Name"] == row["Company Name"]].tolist()
-                    if idx_to_update:
-                        idx_to_update = idx_to_update[0]
+                    idx_to_update = None
+                    for i, comp in enumerate(st.session_state["companies"]):
+                        if comp["Company Name"] == row["Company Name"]:
+                            idx_to_update = i
+                            break
+                    if idx_to_update is not None:
                         companies_copy = st.session_state["companies"].copy()
-                        companies_copy[idx_to_update].update(edited_scores)
+                        for crit, val in edited_scores.items():
+                            companies_copy[idx_to_update][crit] = val
                         st.session_state["companies"] = companies_copy
                         st.success(f"Updated '{row['Company Name']}'")
                         st.session_state["editing_company"] = None
+                        st.experimental_rerun()
                     else:
                         st.error("Company not found.")
                 if canceled:
