@@ -9,7 +9,7 @@ criteria_info = {
     "Customer Validation": "Evidence of real customer demand or feedback",
     "Go-to-Market Readiness": "Preparedness for product/service launch",
     "Market Opportunity": "Size and growth potential of target market",
-    "Product Feasibility": "Technical and operational feasibility of offering",
+    "Product Feasibility": "Technical and operational feasibility of product",
     "Revenue Potential": "Ability to generate significant, scalable income",
     "Uniqueness": "Originality and rarity of product/service in market"
 }
@@ -43,7 +43,9 @@ with st.form("add_form"):
 
     new_scores = {}
     for crit, desc in sorted(criteria_info.items()):
-        new_scores[crit] = st.slider(f"{crit} — {desc}", 1, 5, 3)
+        weight_pct = int(weights[crit] * 100)
+        label = f"{crit} ({weight_pct}%) — {desc}"
+        new_scores[crit] = st.slider(label, 1, 5, 3)
 
     add_submitted = st.form_submit_button("Add Company")
 
@@ -81,7 +83,6 @@ if st.session_state["companies"]:
     if sort_option == "Rank (highest score first)":
         df = df.sort_values(["Score (%)", "Company Name"], ascending=[False, True])
     else:
-        # Case-insensitive alphabetical sort fix
         df = df.assign(SortKey=df["Company Name"].str.lower())
         df = df.sort_values("SortKey")
         df = df.drop(columns=["SortKey"])
@@ -106,7 +107,9 @@ if st.session_state["companies"]:
             with st.form(f"edit_form_{key_prefix}"):
                 edited_scores = {}
                 for crit, desc in sorted(criteria_info.items()):
-                    edited_scores[crit] = st.slider(f"{crit} — {desc}", 1, 5, row[crit], key=f"{key_prefix}_{crit}")
+                    weight_pct = int(weights[crit] * 100)
+                    label = f"{crit} ({weight_pct}%) — {desc}"
+                    edited_scores[crit] = st.slider(label, 1, 5, row[crit], key=f"{key_prefix}_{crit}")
                 submitted = st.form_submit_button("Save Changes")
                 canceled = st.form_submit_button("Cancel")
                 if submitted:
