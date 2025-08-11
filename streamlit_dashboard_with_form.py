@@ -122,13 +122,7 @@ if st.session_state["companies"]:
         cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
 
         score = row["Score (%)"]
-        if score >= 75:
-            bar_color = "green"
-        elif score >= 50:
-            bar_color = "yellow"
-        else:
-            bar_color = "red"
-        cols[1].progress(min(score / 100, 1.0), text_color=bar_color)
+        cols[1].progress(min(score / 100, 1.0))
 
         if cols[2].button("✏️ Edit", key=f"edit_{key_prefix}"):
             if st.session_state["editing_company"] == row["Company Name"]:
@@ -162,7 +156,7 @@ if st.session_state["companies"]:
                 if canceled:
                     st.session_state["editing_company"] = None
 
-# Delete confirmation modal alternative (simple yes/no with st.warning and buttons)
+# Delete confirmation
 if st.session_state.get("delete_candidate", None):
     company_to_delete = st.session_state["delete_candidate"]
     st.warning(f"Are you sure you want to delete **{company_to_delete}**? This action cannot be undone.")
