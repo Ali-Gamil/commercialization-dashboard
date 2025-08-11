@@ -27,14 +27,6 @@ weights = {
     "Uniqueness": 0.05
 }
 
-labels_score = {
-    1: "1 - Poor",
-    2: "2 - Fair",
-    3: "3 - Average",
-    4: "4 - Good",
-    5: "5 - Excellent"
-}
-
 def compute_score(row):
     return round(sum(row[col] * weights[col] for col in weights) * 20, 2)
 
@@ -88,7 +80,7 @@ with st.form("add_form"):
     for crit, desc in sorted(criteria_info.items()):
         weight_pct = int(weights[crit]*100)
         label = f"{crit} ({weight_pct}%) — {desc}"
-        new_scores[crit] = st.selectbox(label, options=list(labels_score.keys()), format_func=lambda x: labels_score[x], index=2)
+        new_scores[crit] = st.slider(label, 1, 5, 3, key=f"add_{crit}")
 
     add_submitted = st.form_submit_button("Add Company")
 
@@ -132,18 +124,6 @@ if st.session_state["companies"]:
 
     st.header(f"📊 Company Scores & Ranking ({len(df)} shown)")
 
-    # Overall analytics
-    st.subheader("📈 Overall Insights & Analytics")
-
-    avg_scores = df[list(criteria_info.keys())].mean().sort_values(ascending=False)
-
-    # Bar chart of average criteria scores
-    st.bar_chart(avg_scores)
-
-    # Line chart of average criteria scores (as alternative to radar chart)
-    st.line_chart(avg_scores)
-
-    # Display table with progress bars and edit/delete buttons
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
 
@@ -174,7 +154,7 @@ if st.session_state["companies"]:
                 for crit, desc in sorted(criteria_info.items()):
                     weight_pct = int(weights[crit] * 100)
                     label = f"{crit} ({weight_pct}%) — {desc}"
-                    edited_scores[crit] = st.selectbox(label, options=list(labels_score.keys()), format_func=lambda x: labels_score[x], index=row[crit]-1, key=f"{key_prefix}_{crit}")
+                    edited_scores[crit] = st.slider(label, 1, 5, row[crit], key=f"edit_{key_prefix}_{crit}")
                 submitted = st.form_submit_button("Save Changes")
                 canceled = st.form_submit_button("Cancel")
                 if submitted:
