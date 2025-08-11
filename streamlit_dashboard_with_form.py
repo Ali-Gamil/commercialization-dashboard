@@ -81,6 +81,7 @@ if st.session_state["companies"]:
     if sort_option == "Rank (highest score first)":
         df = df.sort_values(["Score (%)", "Company Name"], ascending=[False, True])
     else:
+        # Case-insensitive alphabetical sort fix
         df = df.assign(SortKey=df["Company Name"].str.lower())
         df = df.sort_values("SortKey")
         df = df.drop(columns=["SortKey"])
@@ -90,24 +91,16 @@ if st.session_state["companies"]:
 
         cols = st.columns([5, 1, 1])
         cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
-
-        # Checkbox toggle for edit menu (one click open/close)
-        edit_toggle = cols[1].checkbox(
-            "✏️ Edit",
-            value=(st.session_state["editing_company"] == row["Company Name"]),
-            key=f"edit_chk_{key_prefix}"
-        )
-        if edit_toggle:
-            st.session_state["editing_company"] = row["Company Name"]
-        else:
+        if cols[1].button("✏️ Edit", key=f"edit_{key_prefix}"):
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
-
+            else:
+                st.session_state["editing_company"] = row["Company Name"]
         if cols[2].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
-            st.experimental_rerun()  # Force immediate refresh on delete
+            st.session_state["needs_rerun"] = True
 
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
