@@ -27,7 +27,6 @@ weights = {
 
 assert abs(sum(weights.values()) - 1.0) < 1e-6, "Weights must sum to 1.0"
 
-# Initialize session state variables if missing
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
 
@@ -37,68 +36,8 @@ if "editing_company" not in st.session_state:
 if "needs_rerun" not in st.session_state:
     st.session_state["needs_rerun"] = False
 
-if "uploaded_csv_files" not in st.session_state:
-    st.session_state["uploaded_csv_files"] = []
-
-if "uploaded_csv_data" not in st.session_state:
-    st.session_state["uploaded_csv_data"] = []  # store merged CSV companies here
-
-# --- Sidebar: CSV Upload + List of Uploaded CSVs ---
-st.sidebar.header("📂 Upload Companies CSV")
-uploaded_file = st.sidebar.file_uploader(
-    "Upload CSV with columns: 'Company Name' and all criteria names", 
-    type=["csv"]
-)
-
-if uploaded_file is not None:
-    try:
-        df_uploaded = pd.read_csv(uploaded_file)
-
-        # Basic validation of required columns
-        required_columns = ["Company Name"] + list(criteria_info.keys())
-        missing_cols = [col for col in required_columns if col not in df_uploaded.columns]
-        if missing_cols:
-            st.sidebar.error(f"Missing required columns: {missing_cols}")
-        else:
-            new_entries = []
-            for _, row in df_uploaded.iterrows():
-                # Avoid duplicates (case insensitive)
-                if any(c["Company Name"].lower() == str(row["Company Name"]).strip().lower() for c in st.session_state["companies"]):
-                    continue
-                entry = {"Company Name": str(row["Company Name"]).strip()}
-                for crit in criteria_info.keys():
-                    try:
-                        val = float(row[crit])
-                        val = max(1, min(5, val))  # clamp between 1 and 5
-                        entry[crit] = int(round(val))
-                    except Exception:
-                        entry[crit] = 3  # default if invalid
-                new_entries.append(entry)
-
-            if new_entries:
-                st.session_state["companies"].extend(new_entries)
-                st.session_state["uploaded_csv_data"].extend(new_entries)
-                st.session_state["needs_rerun"] = True
-
-            # Track uploaded filenames
-            filename = uploaded_file.name
-            if filename not in st.session_state["uploaded_csv_files"]:
-                st.session_state["uploaded_csv_files"].append(filename)
-
-            st.sidebar.success(f"Uploaded '{filename}' with {len(new_entries)} new companies added.")
-
-        # Clear uploaded_file to prevent multiple reads on rerun
-        st.session_state["_uploaded_file_processed"] = True
-        del uploaded_file  # remove reference to uploaded_file
-
-    except Exception as e:
-        st.sidebar.error(f"Error reading CSV: {e}")
-
-# Display list of uploaded CSV filenames
-if st.session_state["uploaded_csv_files"]:
-    st.sidebar.markdown("### Uploaded CSV files:")
-    for f in st.session_state["uploaded_csv_files"]:
-        st.sidebar.write(f"• {f}")
+if "delete_candidate" not in st.session_state:
+    st.session_state["delete_candidate"] = None
 
 # --- Add New Company Form ---
 st.header("➕ Add New Company")
@@ -163,11 +102,23 @@ if st.session_state["companies"]:
             else:
                 st.session_state["editing_company"] = row["Company Name"]
 
+        # Delete button triggers candidate setting
         if cols[2].button("❌ Delete", key=f"del_{key_prefix}"):
-            st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
-            if st.session_state["editing_company"] == row["Company Name"]:
-                st.session_state["editing_company"] = None
-            st.session_state["needs_rerun"] = True
+            st.session_state["delete_candidate"] = row["Company Name"]
+
+        # Show confirmation only if this company is delete_candidate
+        if st.session_state.get("delete_candidate") == row["Company Name"]:
+            confirm_cols = st.columns([5, 1, 1])
+            confirm_cols[0].warning(f"Confirm deletion of **{row['Company Name']}**?")
+            if confirm_cols[1].button("Yes", key=f"confirm_del_yes_{key_prefix}"):
+                st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
+                if st.session_state["editing_company"] == row["Company Name"]:
+                    st.session_state["editing_company"] = None
+                st.session_state["delete_candidate"] = None
+                st.session_state["needs_rerun"] = True
+            if confirm_cols[2].button("No", key=f"confirm_del_no_{key_prefix}"):
+                st.session_state["delete_candidate"] = None
+                st.session_state["needs_rerun"] = True
 
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
