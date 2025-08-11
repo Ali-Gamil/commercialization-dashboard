@@ -158,8 +158,9 @@ if st.session_state["companies"]:
                         st.error("Company not found.")
                 if canceled:
                     st.session_state["editing_company"] = None
+                    
     csv_data = df_download.to_csv(index=False).encode('utf-8')
-    st.sidebar.download_button(
+    st.download_button(
         "📥 Download Scored CSV",
         data=csv_data,
         file_name="scored_companies.csv",
