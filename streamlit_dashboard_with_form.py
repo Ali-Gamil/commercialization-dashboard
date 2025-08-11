@@ -51,16 +51,22 @@ if uploaded_file:
         else:
             st.session_state["companies"] = df_uploaded[expected_cols].to_dict(orient="records")
             st.success(f"Loaded {len(st.session_state['companies'])} companies from file.")
+            st.sidebar.info("⚠️ Please remove the uploaded CSV to maintain proper working order.")
     except Exception as e:
         st.sidebar.error(f"Failed to load CSV: {e}")
 
-# --- Data Download ---
+# --- Data Download (Scored CSV) ---
 if st.session_state["companies"]:
     df_download = pd.DataFrame(st.session_state["companies"])
     df_download["Score (%)"] = df_download.apply(compute_score, axis=1)
 
     csv_data = df_download.to_csv(index=False).encode('utf-8')
-    st.sidebar.download_button("📥 Download CSV", data=csv_data, file_name="companies.csv", mime="text/csv")
+    st.sidebar.download_button(
+        "📥 Download Scored CSV",
+        data=csv_data,
+        file_name="scored_companies.csv",
+        mime="text/csv"
+    )
 
 # --- Add Company ---
 st.header("➕ Add New Company")
