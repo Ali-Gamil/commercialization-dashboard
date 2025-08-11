@@ -93,20 +93,22 @@ if st.session_state["companies"]:
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
 
-        cols = st.columns([5, 1, 1])
+        # Columns: Text, Progress bar, Edit, Delete
+        cols = st.columns([5, 1, 1, 1])
+
+        # Company name, rank, score
         cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
+        # Progress bar showing score percentage
+        cols[1].progress(row["Score (%)"] / 100)
 
-        # Add progress bar for the score %
-        cols[0].progress(row["Score (%)"] / 100)
-
-        if cols[1].button("✏️ Edit", key=f"edit_{key_prefix}"):
+        if cols[2].button("✏️ Edit", key=f"edit_{key_prefix}"):
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
             else:
                 st.session_state["editing_company"] = row["Company Name"]
 
         # Delete button triggers candidate setting
-        if cols[2].button("❌ Delete", key=f"del_{key_prefix}"):
+        if cols[3].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["delete_candidate"] = row["Company Name"]
 
         # Show confirmation only if this company is delete_candidate
