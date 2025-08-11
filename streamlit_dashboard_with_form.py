@@ -4,7 +4,6 @@ import pandas as pd
 st.set_page_config(layout="wide")
 st.title("📝 Company Commercialization Scoring Dashboard")
 
-# Criteria metadata
 CRITERIA_INFO = {
     "Business Model": "How well the company generates and sustains revenue",
     "Competitive Advantage": "Differentiation from competitors in a sustainable way",
@@ -27,7 +26,6 @@ CRITERIA_WEIGHTS = {
     "Uniqueness": 0.05,
 }
 
-# Initialize session state keys
 def init_session_state():
     if "companies" not in st.session_state:
         st.session_state["companies"] = []
@@ -36,17 +34,14 @@ def init_session_state():
     if "delete_candidate" not in st.session_state:
         st.session_state["delete_candidate"] = None
 
-# Compute weighted score for a company dict
 def compute_score(company):
     score = 0.0
     for crit, weight in CRITERIA_WEIGHTS.items():
         val = company.get(crit, 0)
         score += val * weight
-    # Scale score to 0-100 assuming max slider = 5
     max_score = 5 * sum(CRITERIA_WEIGHTS.values())
     return round((score / max_score) * 100, 2)
 
-# Load companies from uploaded CSV file
 def handle_file_upload():
     st.sidebar.header("🔄 Upload / Download Dataset")
     uploaded_file = st.sidebar.file_uploader("Upload CSV to load companies", type=["csv"])
@@ -57,15 +52,14 @@ def handle_file_upload():
             if not all(col in df_uploaded.columns for col in expected_cols):
                 st.sidebar.error(f"CSV missing required columns: {expected_cols}")
             else:
-                # Normalize data types (convert criteria columns to int)
                 for crit in CRITERIA_INFO.keys():
                     df_uploaded[crit] = pd.to_numeric(df_uploaded[crit], errors='coerce').fillna(3).astype(int).clip(1,5)
                 st.session_state["companies"] = df_uploaded[expected_cols].to_dict(orient="records")
                 st.success(f"Loaded {len(st.session_state['companies'])} companies from file.")
+                st.experimental_rerun()
         except Exception as e:
             st.sidebar.error(f"Failed to load CSV: {e}")
 
-# Provide CSV download button
 def provide_csv_download():
     if st.session_state["companies"]:
         df = pd.DataFrame(st.session_state["companies"])
@@ -78,7 +72,6 @@ def provide_csv_download():
             mime="text/csv",
         )
 
-# Add new company form
 def add_company_form():
     st.header("➕ Add New Company")
     with st.form("add_form", clear_on_submit=True):
@@ -100,8 +93,8 @@ def add_company_form():
             entry.update(new_scores)
             st.session_state["companies"].append(entry)
             st.success(f"Company '{new_name.strip()}' added!")
+            st.experimental_rerun()  # <--- immediate rerun after add
 
-# Display and manage company list table
 def display_companies():
     if not st.session_state["companies"]:
         st.info("No companies added yet. Use the form above or upload a dataset.")
@@ -142,18 +135,18 @@ def display_companies():
                 st.session_state["editing_company"] = None
             else:
                 st.session_state["editing_company"] = row["Company Name"]
+            st.experimental_rerun()  # <--- rerun to show/hide edit form instantly
 
         if cols[3].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["delete_candidate"] = row["Company Name"]
+            st.experimental_rerun()  # <--- rerun to show delete confirmation instantly
 
-        # Editing form inline
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
                 edited_scores = {}
                 for crit, desc in sorted(CRITERIA_INFO.items()):
                     weight_pct = int(CRITERIA_WEIGHTS[crit] * 100)
                     label = f"{crit} ({weight_pct}%) — {desc}"
-                    # default to current score
                     current_val = row[crit] if crit in row else 3
                     edited_scores[crit] = st.slider(label, 1, 5, current_val, key=f"edit_{key_prefix}_{crit}")
                 submitted = st.form_submit_button("Save Changes")
@@ -165,12 +158,13 @@ def display_companies():
                             st.session_state["companies"][idx][crit] = val
                         st.success(f"Updated '{row['Company Name']}'")
                         st.session_state["editing_company"] = None
+                        st.experimental_rerun()  # <--- instant update after save
                     else:
                         st.error("Company not found.")
                 if canceled:
                     st.session_state["editing_company"] = None
+                    st.experimental_rerun()  # <--- instant update after cancel
 
-# Confirm and delete company
 def handle_delete():
     if st.session_state.get("delete_candidate"):
         company_to_delete = st.session_state["delete_candidate"]
@@ -181,11 +175,13 @@ def handle_delete():
                 st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != company_to_delete]
                 st.session_state["delete_candidate"] = None
                 st.success(f"Deleted company '{company_to_delete}'")
+                st.experimental_rerun()  # <--- instant update after delete
         with cancel_col:
             if st.button("Cancel"):
                 st.session_state["delete_candidate"] = None
+                st.experimental_rerun()  # <--- instant update after cancel
 
-# Main app flow
+# Main flow
 init_session_state()
 handle_file_upload()
 provide_csv_download()
