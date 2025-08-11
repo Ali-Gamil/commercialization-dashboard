@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import io
-import matplotlib.pyplot as plt
-import numpy as np
 
 st.set_page_config(layout="wide")
 st.title("📝 Company Commercialization Scoring Dashboard")
@@ -90,7 +88,6 @@ with st.form("add_form"):
     for crit, desc in sorted(criteria_info.items()):
         weight_pct = int(weights[crit]*100)
         label = f"{crit} ({weight_pct}%) — {desc}"
-        # Use selectbox with labels instead of slider
         new_scores[crit] = st.selectbox(label, options=list(labels_score.keys()), format_func=lambda x: labels_score[x], index=2)
 
     add_submitted = st.form_submit_button("Add Company")
@@ -143,34 +140,16 @@ if st.session_state["companies"]:
     # Bar chart of average criteria scores
     st.bar_chart(avg_scores)
 
-    # Radar chart for average scores
-    def radar_chart(scores, labels):
-        angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-        scores = scores.tolist()
-        scores += scores[:1]
-        angles += angles[:1]
-
-        fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
-        ax.plot(angles, scores, 'o-', linewidth=2)
-        ax.fill(angles, scores, alpha=0.25)
-        ax.set_thetagrids(np.degrees(angles[:-1]), labels)
-        ax.set_ylim(0, 5)
-        ax.set_title("Average Scores per Criterion")
-        ax.grid(True)
-        return fig
-
-    fig = radar_chart(avg_scores, avg_scores.index)
-    st.pyplot(fig)
+    # Line chart of average criteria scores (as alternative to radar chart)
+    st.line_chart(avg_scores)
 
     # Display table with progress bars and edit/delete buttons
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
 
         cols = st.columns([5, 2, 1, 1])
-        # Company name, rank, score
         cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
 
-        # Progress bar with color (green/yellow/red based on score)
         score = row["Score (%)"]
         if score >= 75:
             bar_color = "green"
@@ -178,20 +157,17 @@ if st.session_state["companies"]:
             bar_color = "yellow"
         else:
             bar_color = "red"
-        cols[1].progress(min(score/100,1.0), text_color=bar_color)
+        cols[1].progress(min(score / 100, 1.0), text_color=bar_color)
 
-        # Edit button
         if cols[2].button("✏️ Edit", key=f"edit_{key_prefix}"):
             if st.session_state["editing_company"] == row["Company Name"]:
                 st.session_state["editing_company"] = None
             else:
                 st.session_state["editing_company"] = row["Company Name"]
 
-        # Delete button triggers confirmation dialog
         if cols[3].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["delete_candidate"] = row["Company Name"]
 
-        # Edit form
         if st.session_state["editing_company"] == row["Company Name"]:
             with st.form(f"edit_form_{key_prefix}"):
                 edited_scores = {}
@@ -215,16 +191,18 @@ if st.session_state["companies"]:
                 if canceled:
                     st.session_state["editing_company"] = None
 
-# Delete confirmation modal
+# Delete confirmation modal alternative (simple yes/no with st.warning and buttons)
 if st.session_state.get("delete_candidate", None):
     company_to_delete = st.session_state["delete_candidate"]
-    if st.modal("Delete Confirmation"):
-        st.warning(f"Are you sure you want to delete **{company_to_delete}**? This action cannot be undone.")
+    st.warning(f"Are you sure you want to delete **{company_to_delete}**? This action cannot be undone.")
+    confirm_col, cancel_col = st.columns(2)
+    with confirm_col:
         if st.button("Yes, delete"):
             st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != company_to_delete]
             st.session_state["delete_candidate"] = None
             st.success(f"Deleted company '{company_to_delete}'")
             st.experimental_rerun()
+    with cancel_col:
         if st.button("Cancel"):
             st.session_state["delete_candidate"] = None
 
