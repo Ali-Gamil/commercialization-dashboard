@@ -14,16 +14,19 @@ criteria_info = {
     "Uniqueness": "Originality and rarity of product/service in market"
 }
 
+# Weights in multiples of 0.05, sum to 1.0
 weights = {
-    "Business Model": 0.15,
+    "Business Model": 0.10,           # Changed from 0.15 to 0.10
     "Competitive Advantage": 0.10,
     "Customer Validation": 0.10,
     "Go-to-Market Readiness": 0.10,
     "Market Opportunity": 0.20,
-    "Product Feasibility": 0.15,
+    "Product Feasibility": 0.15,      # Changed from 0.15 to 0.15 (kept)
     "Revenue Potential": 0.20,
-    "Uniqueness": 0.10
+    "Uniqueness": 0.05                # Reduced from 0.10 to 0.05 to fit
 }
+
+assert abs(sum(weights.values()) - 1.0) < 1e-6, "Weights must sum to 1.0"
 
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
@@ -65,7 +68,7 @@ if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
 
     def compute_score(row):
-        return round(sum(row[col] * weights[col] for col in weights) * 20, 2)
+        return round(sum(row[col] * weights[col] for col in weights) * 20, 2)  # 5-point scale * 20 = 100 max
 
     df["Score (%)"] = df.apply(compute_score, axis=1)
     df["Rank"] = df["Score (%)"].rank(ascending=False, method="min").astype(int)
@@ -86,8 +89,14 @@ if st.session_state["companies"]:
 
         cols = st.columns([5, 1, 1])
         cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
+
+        # Toggle edit mode on/off with one click
         if cols[1].button("✏️ Edit", key=f"edit_{key_prefix}"):
-            st.session_state["editing_company"] = row["Company Name"]
+            if st.session_state["editing_company"] == row["Company Name"]:
+                st.session_state["editing_company"] = None
+            else:
+                st.session_state["editing_company"] = row["Company Name"]
+
         if cols[2].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
             if st.session_state["editing_company"] == row["Company Name"]:
