@@ -186,4 +186,4 @@ if st.session_state["companies"]:
 # --- Finally, rerun if needed ---
 if st.session_state.get("needs_rerun", False):
     st.session_state["needs_rerun"] = False
-    st.rerun()
+    st.experimental.rerun()
