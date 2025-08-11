@@ -29,7 +29,7 @@ weights = {
 if "companies" not in st.session_state:
     st.session_state["companies"] = []
 
-# Track which company is currently being edited inline
+# Track which company is currently being edited (show edit form below that row)
 if "editing_company" not in st.session_state:
     st.session_state["editing_company"] = None
 
@@ -56,7 +56,7 @@ with st.form("add_form"):
             st.success(f"Company '{new_name.strip()}' added!")
             st.session_state["editing_company"] = None
 
-# --- Scoring & Ranking Table with inline editing and delete ---
+# --- Scoring & Ranking Table with Edit and Delete buttons ---
 if st.session_state["companies"]:
     st.header("📊 Company Scores & Ranking")
 
@@ -79,49 +79,13 @@ if st.session_state["companies"]:
     else:
         df = df.sort_values("Company Name")
 
-    # Display list with inline editing and delete button
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
 
-        if st.session_state["editing_company"] == row["Company Name"]:
-            st.markdown(f"### Editing: {row['Company Name']} (Rank: {row['Rank']}, Score: {row['Score (%)']}%)")
-            with st.form(f"edit_form_{key_prefix}"):
-                edited_scores = {}
-                for crit, desc in sorted(criteria_info.items()):
-                    edited_scores[crit] = st.slider(f"{crit} — {desc}", 1, 5, row[crit], key=f"{key_prefix}_{crit}")
-                submitted = st.form_submit_button("Save Changes")
-                cancel = st.form_submit_button("Cancel")
-                if submitted:
-                    # Update the company in session_state
-                    for c in st.session_state["companies"]:
-                        if c["Company Name"] == row["Company Name"]:
-                            c.update(edited_scores)
-                            break
-                    st.success(f"Updated '{row['Company Name']}'")
-                    st.session_state["editing_company"] = None
-                    st.experimental_rerun()
-                if cancel:
-                    st.session_state["editing_company"] = None
-                    st.experimental_rerun()
-
-        else:
-            cols = st.columns([5, 1, 1])
-            # Company name as clickable button for edit
-            if cols[0].button(f"{row['Company Name']} (Rank: {row['Rank']}, Score: {row['Score (%)']}%)", key=f"btn_{key_prefix}"):
-                st.session_state["editing_company"] = row["Company Name"]
-                st.experimental_rerun()
-            # Empty placeholder for alignment
-            cols[1].write("")
-            # Delete button
-            if cols[2].button("❌ Delete", key=f"del_{key_prefix}"):
-                st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != row["Company Name"]]
-                if st.session_state["editing_company"] == row["Company Name"]:
-                    st.session_state["editing_company"] = None
-                st.experimental_rerun()
-
-    st.download_button(
-        label="📥 Download Scored CSV",
-        data=df.to_csv(index=False).encode("utf-8"),
-        file_name="scored_companies.csv",
-        mime="text/csv"
-    )
+        # Display the company info row with Edit and Delete buttons
+        cols = st.columns([5, 1, 1])
+        cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score (%)']}%")
+        if cols[1].button("✏️ Edit", key=f"edit_{key_prefix}"):
+            st.session_state["editing_company"] = row["Company Name"]
+        if cols[2].button("❌ Delete", key=f"del_{key_prefix}"):
+            st.session_state["companies"] = [c for c in st.session_s_]()_
