@@ -159,6 +159,10 @@ if st.session_state["companies"]:
                 if canceled:
                     st.session_state["editing_company"] = None
                     
+    if st.session_state["companies"]:
+    df_download = pd.DataFrame(st.session_state["companies"])
+    df_download["Score (%)"] = df_download.apply(compute_score, axis=1)
+
     csv_data = df_download.to_csv(index=False).encode('utf-8')
     st.download_button(
         "📥 Download Scored CSV",
