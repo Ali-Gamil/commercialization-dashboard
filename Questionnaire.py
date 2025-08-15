@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import io
 
-# --- Page settings ---
-st.set_page_config(page_title="Commercialization Screening", layout="wide")
-st.title("Commercialization Readiness Screening Dashboard")
+st.set_page_config(layout="wide")
+st.title("📝 Company Commercialization Scoring Dashboard")
 
 # --- Questions ---
 questions = [
@@ -20,82 +19,150 @@ questions = [
     "Does the company have access to necessary equipment, facilities, or technology?"
 ]
 
-# --- Sidebar for CSV upload ---
-st.sidebar.header("Upload Company List")
-uploaded_file = st.sidebar.file_uploader("Upload a CSV with a 'Company' column", type="csv")
+def compute_score(row):
+    return sum(row[q] for q in questions)
 
-# Example CSV template
-if st.sidebar.button("Download CSV Template"):
-    template_df = pd.DataFrame({"Company": ["Example Company 1", "Example Company 2"]})
-    csv_bytes = template_df.to_csv(index=False).encode()
-    st.sidebar.download_button("Download Template", csv_bytes, "template.csv", "text/csv")
+# --- Session state ---
+if "companies" not in st.session_state:
+    st.session_state["companies"] = []
 
-# --- Data containers ---
-all_answers = []
+if "editing_company" not in st.session_state:
+    st.session_state["editing_company"] = None
 
-# --- Mode 1: CSV-based screening ---
+if "delete_candidate" not in st.session_state:
+    st.session_state["delete_candidate"] = None
+
+# --- Sidebar CSV upload/download ---
+st.sidebar.header("🔄 Upload / Download Dataset")
+uploaded_file = st.sidebar.file_uploader("Upload CSV to load companies", type=["csv"])
 if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    if "Company" not in df.columns:
-        st.error("CSV must contain a 'Company' column.")
+    try:
+        df_uploaded = pd.read_csv(uploaded_file)
+        expected_cols = ["Company Name"] + questions
+        if not all(col in df_uploaded.columns for col in expected_cols):
+            st.sidebar.error(f"CSV missing required columns: {expected_cols}")
+        else:
+            st.session_state["companies"] = df_uploaded[expected_cols].to_dict(orient="records")
+            st.success(f"Loaded {len(st.session_state['companies'])} companies from file.")
+            st.sidebar.info("⚠️ Please remove the uploaded CSV to maintain proper working order.")
+    except Exception as e:
+        st.sidebar.error(f"Failed to load CSV: {e}")
+
+# --- Add New Company ---
+st.header("➕ Add New Company")
+with st.form("add_form"):
+    new_name = st.text_input("Company Name")
+    new_answers = {}
+    for q in questions:
+        new_answers[q] = st.radio(q, ["Yes", "No"], index=1, horizontal=True, key=f"add_{q}") == "Yes"
+    add_submitted = st.form_submit_button("Add Company")
+    if add_submitted:
+        if not new_name.strip():
+            st.error("Company Name cannot be empty.")
+        elif any(c["Company Name"].lower() == new_name.strip().lower() for c in st.session_state["companies"]):
+            st.error("Company with this name already exists.")
+        else:
+            entry = {"Company Name": new_name.strip()}
+            entry.update(new_answers)
+            st.session_state["companies"].append(entry)
+            st.success(f"Company '{new_name.strip()}' added!")
+            st.session_state["editing_company"] = None
+
+# --- Search Filter ---
+search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
+
+# --- Main Table ---
+if st.session_state["companies"]:
+    df = pd.DataFrame(st.session_state["companies"])
+    df["Score"] = df.apply(compute_score, axis=1)
+    df["Rank"] = df["Score"].rank(ascending=False, method="min").astype(int)
+
+    # Filter by search
+    if search_term:
+        df = df[df["Company Name"].str.lower().str.contains(search_term)]
+
+    sort_option = st.radio(
+        "Sort companies by:",
+        ("Rank (highest score first)", "Alphabetical (Company Name)"),
+        index=0
+    )
+
+    if sort_option == "Rank (highest score first)":
+        df = df.sort_values(["Score", "Company Name"], ascending=[False, True])
     else:
-        st.subheader("📂 Screening Companies from CSV")
-        search_query = st.text_input("Search companies by name", key="csv_search").strip().lower()
+        df = df.assign(SortKey=df["Company Name"].str.lower())
+        df = df.sort_values("SortKey")
+        df = df.drop(columns=["SortKey"])
 
-        for idx, row in df.iterrows():
-            company_name = row["Company"]
-            if search_query and search_query not in company_name.lower():
-                continue
+    st.header(f"📊 Company Scores & Ranking ({len(df)} shown)")
 
-            st.markdown(f"### {company_name}")
-            company_answers = {}
-            score = 0
-            cols = st.columns(2)
-            for i, q in enumerate(questions):
-                answer = cols[i % 2].radio(q, ["Yes", "No"], key=f"{company_name}_{i}")
-                company_answers[q] = answer
-                if answer == "Yes":
-                    score += 1
-            company_answers["Company"] = company_name
-            company_answers["Score"] = score
-            all_answers.append(company_answers)
+    for idx, row in df.reset_index(drop=True).iterrows():
+        key_prefix = f"company_{row['Company Name']}"
+        cols = st.columns([5, 2, 1, 1])
+        cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score']} / {len(questions)}")
+        progress = row["Score"] / len(questions)
+        cols[1].progress(min(progress, 1.0))
 
-# --- Mode 2: Manual single-company screening ---
-st.subheader("✏️ Quick Screening (No CSV Required)")
-manual_company_name = st.text_input("Enter Company Name", placeholder="Type company name here", key="manual_name")
-if manual_company_name:
-    st.markdown(f"### {manual_company_name}")
-    manual_answers = {}
-    score = 0
-    cols = st.columns(2)
-    for i, q in enumerate(questions):
-        answer = cols[i % 2].radio(q, ["Yes", "No"], key=f"manual_{i}")
-        manual_answers[q] = answer
-        if answer == "Yes":
-            score += 1
-    manual_answers["Company"] = manual_company_name
-    manual_answers["Score"] = score
-    all_answers.append(manual_answers)
+        if cols[2].button("✏️ Edit", key=f"edit_{key_prefix}"):
+            if st.session_state["editing_company"] == row["Company Name"]:
+                st.session_state["editing_company"] = None
+            else:
+                st.session_state["editing_company"] = row["Company Name"]
 
-# --- Show combined results if any ---
-if all_answers:
-    st.subheader("📊 Combined Company Scores")
-    results_df = pd.DataFrame(all_answers)
+        if cols[3].button("❌ Delete", key=f"del_{key_prefix}"):
+            st.session_state["delete_candidate"] = row["Company Name"]
 
-    # Sorting options
-    sort_option = st.selectbox("Sort by", ["Score (High to Low)", "Score (Low to High)", "Company Name (A-Z)", "Company Name (Z-A)"])
-    if sort_option == "Score (High to Low)":
-        results_df = results_df.sort_values(by="Score", ascending=False)
-    elif sort_option == "Score (Low to High)":
-        results_df = results_df.sort_values(by="Score", ascending=True)
-    elif sort_option == "Company Name (A-Z)":
-        results_df = results_df.sort_values(by="Company", ascending=True)
-    elif sort_option == "Company Name (Z-A)":
-        results_df = results_df.sort_values(by="Company", ascending=False)
+        # --- Edit Form ---
+        if st.session_state["editing_company"] == row["Company Name"]:
+            with st.form(f"edit_form_{key_prefix}"):
+                edited_answers = {}
+                for q in questions:
+                    edited_answers[q] = st.radio(q, ["Yes", "No"], index=1 if row[q] else 0,
+                                                 horizontal=True, key=f"edit_{key_prefix}_{q}") == "Yes"
+                submitted = st.form_submit_button("Save Changes")
+                canceled = st.form_submit_button("Cancel")
+                if submitted:
+                    idx_to_update = None
+                    for i, comp in enumerate(st.session_state["companies"]):
+                        if comp["Company Name"] == row["Company Name"]:
+                            idx_to_update = i
+                            break
+                    if idx_to_update is not None:
+                        companies_copy = st.session_state["companies"].copy()
+                        for q, val in edited_answers.items():
+                            companies_copy[idx_to_update][q] = val
+                        st.session_state["companies"] = companies_copy
+                        st.success(f"Updated '{row['Company Name']}'")
+                        st.session_state["editing_company"] = None
+                        st.stop()
+                    else:
+                        st.error("Company not found.")
+                if canceled:
+                    st.session_state["editing_company"] = None
 
-    st.dataframe(results_df, use_container_width=True)
+    # --- Download CSV ---
+    csv_data = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "📥 Download Scored CSV",
+        data=csv_data,
+        file_name="scored_companies.csv",
+        mime="text/csv"
+    )
 
-    # Download all results
-    csv_buffer = io.StringIO()
-    results_df.to_csv(csv_buffer, index=False)
-    st.download_button("Download All Results CSV", csv_buffer.getvalue(), "all_company_scores.csv", "text/csv")
+# --- Delete confirmation ---
+if st.session_state.get("delete_candidate", None):
+    company_to_delete = st.session_state["delete_candidate"]
+    st.warning(f"Are you sure you want to delete **{company_to_delete}**? This action cannot be undone.")
+    confirm_col, cancel_col = st.columns(2)
+    with confirm_col:
+        if st.button("Yes, delete"):
+            st.session_state["companies"] = [c for c in st.session_state["companies"] if c["Company Name"] != company_to_delete]
+            st.session_state["delete_candidate"] = None
+            st.success(f"Deleted company '{company_to_delete}'")
+            st.stop()
+    with cancel_col:
+        if st.button("Cancel"):
+            st.session_state["delete_candidate"] = None
+
+if not st.session_state["companies"]:
+    st.info("No companies added yet. Use the form above or upload a dataset.")
