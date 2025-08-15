@@ -20,74 +20,82 @@ questions = [
     "Does the company have access to necessary equipment, facilities, or technology?"
 ]
 
-# --- Input method selection ---
-input_method = st.sidebar.radio("How do you want to enter companies?", ["Upload CSV", "Enter Manually"])
+# --- Sidebar for CSV upload ---
+st.sidebar.header("Upload Company List")
+uploaded_file = st.sidebar.file_uploader("Upload a CSV with a 'Company' column", type="csv")
+
+# Example CSV template
+if st.sidebar.button("Download CSV Template"):
+    template_df = pd.DataFrame({"Company": ["Example Company 1", "Example Company 2"]})
+    csv_bytes = template_df.to_csv(index=False).encode()
+    st.sidebar.download_button("Download Template", csv_bytes, "template.csv", "text/csv")
 
 # --- Data containers ---
-company_list = []
+all_answers = []
 
-# CSV Upload
-if input_method == "Upload CSV":
-    uploaded_file = st.sidebar.file_uploader("Upload a CSV with a 'Company' column", type="csv")
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        if "Company" not in df.columns:
-            st.error("CSV must contain a 'Company' column.")
-        else:
-            company_list = df["Company"].tolist()
+# --- Mode 1: CSV-based screening ---
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    if "Company" not in df.columns:
+        st.error("CSV must contain a 'Company' column.")
+    else:
+        st.subheader("📂 Screening Companies from CSV")
+        search_query = st.text_input("Search companies by name", key="csv_search").strip().lower()
 
-# Manual Entry
-elif input_method == "Enter Manually":
-    st.sidebar.subheader("Enter Company Names")
-    num_companies = st.sidebar.number_input("Number of Companies", min_value=1, max_value=100, value=3, step=1)
-    for i in range(num_companies):
-        name = st.sidebar.text_input(f"Company {i+1} Name", key=f"manual_company_{i}")
-        if name.strip():
-            company_list.append(name.strip())
+        for idx, row in df.iterrows():
+            company_name = row["Company"]
+            if search_query and search_query not in company_name.lower():
+                continue
 
-# --- Screening Section ---
-if company_list:
-    search_query = st.text_input("Search companies by name").strip().lower()
+            st.markdown(f"### {company_name}")
+            company_answers = {}
+            score = 0
+            cols = st.columns(2)
+            for i, q in enumerate(questions):
+                answer = cols[i % 2].radio(q, ["Yes", "No"], key=f"{company_name}_{i}")
+                company_answers[q] = answer
+                if answer == "Yes":
+                    score += 1
+            company_answers["Company"] = company_name
+            company_answers["Score"] = score
+            all_answers.append(company_answers)
 
-    scores = []
-    answers = []
+# --- Mode 2: Manual single-company screening ---
+st.subheader("✏️ Quick Screening (No CSV Required)")
+manual_company_name = st.text_input("Enter Company Name", placeholder="Type company name here", key="manual_name")
+if manual_company_name:
+    st.markdown(f"### {manual_company_name}")
+    manual_answers = {}
+    score = 0
+    cols = st.columns(2)
+    for i, q in enumerate(questions):
+        answer = cols[i % 2].radio(q, ["Yes", "No"], key=f"manual_{i}")
+        manual_answers[q] = answer
+        if answer == "Yes":
+            score += 1
+    manual_answers["Company"] = manual_company_name
+    manual_answers["Score"] = score
+    all_answers.append(manual_answers)
 
-    for company_name in company_list:
-        if search_query and search_query not in company_name.lower():
-            continue
+# --- Show combined results if any ---
+if all_answers:
+    st.subheader("📊 Combined Company Scores")
+    results_df = pd.DataFrame(all_answers)
 
-        st.subheader(company_name)
-        company_answers = []
-        score = 0
-        cols = st.columns(2)
-        for i, q in enumerate(questions):
-            answer = cols[i % 2].radio(q, ["Yes", "No"], key=f"{company_name}_{i}")
-            company_answers.append(answer)
-            if answer == "Yes":
-                score += 1
-
-        scores.append({"Company": company_name, "Score": score})
-        answers.append({"Company": company_name, **{q: company_answers[i] for i, q in enumerate(questions)}})
-
-    # --- Results Table ---
-    st.subheader("Company Scores")
-    scores_df = pd.DataFrame(scores)
+    # Sorting options
     sort_option = st.selectbox("Sort by", ["Score (High to Low)", "Score (Low to High)", "Company Name (A-Z)", "Company Name (Z-A)"])
-    
     if sort_option == "Score (High to Low)":
-        scores_df = scores_df.sort_values(by="Score", ascending=False)
+        results_df = results_df.sort_values(by="Score", ascending=False)
     elif sort_option == "Score (Low to High)":
-        scores_df = scores_df.sort_values(by="Score", ascending=True)
+        results_df = results_df.sort_values(by="Score", ascending=True)
     elif sort_option == "Company Name (A-Z)":
-        scores_df = scores_df.sort_values(by="Company", ascending=True)
+        results_df = results_df.sort_values(by="Company", ascending=True)
     elif sort_option == "Company Name (Z-A)":
-        scores_df = scores_df.sort_values(by="Company", ascending=False)
+        results_df = results_df.sort_values(by="Company", ascending=False)
 
-    st.dataframe(scores_df, use_container_width=True)
+    st.dataframe(results_df, use_container_width=True)
 
-    # --- Download Results ---
+    # Download all results
     csv_buffer = io.StringIO()
-    pd.DataFrame(answers).to_csv(csv_buffer, index=False)
-    st.download_button("Download Results CSV", csv_buffer.getvalue(), "company_scores.csv", "text/csv")
-else:
-    st.info("Please upload a CSV or enter company names to begin.")
+    results_df.to_csv(csv_buffer, index=False)
+    st.download_button("Download All Results CSV", csv_buffer.getvalue(), "all_company_scores.csv", "text/csv")
