@@ -100,9 +100,8 @@ if st.session_state["companies"]:
     max_score = len(questions)
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
-        cols = st.columns([5, 2, 1, 1])
 
-        # Color-code the company name based on score
+        # Determine color
         if row["Score"] / max_score >= 0.8:
             color = "green"
         elif row["Score"] / max_score >= 0.5:
@@ -110,14 +109,25 @@ if st.session_state["companies"]:
         else:
             color = "red"
 
-        cols[0].markdown(f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score}", unsafe_allow_html=True)
-        cols[1].progress(min(row["Score"] / max_score, 1.0))
+        cols = st.columns([5, 2, 1, 1])
+        # Company name with color
+        cols[0].markdown(
+            f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score}",
+            unsafe_allow_html=True
+        )
 
+        # Colored progress bar using HTML
+        progress_percentage = int((row["Score"] / max_score) * 100)
+        progress_html = f"""
+            <div style='background-color:#e0e0e0; border-radius:5px; width:100%; height:20px;'>
+                <div style='width:{progress_percentage}%; background-color:{color}; height:100%; border-radius:5px; text-align:right; color:white; font-weight:bold; padding-right:5px;'>{progress_percentage}%</div>
+            </div>
+        """
+        cols[1].markdown(progress_html, unsafe_allow_html=True)
+
+        # Edit/Delete buttons
         if cols[2].button("✏️ Edit", key=f"edit_{key_prefix}"):
-            if st.session_state["editing_company"] == row["Company Name"]:
-                st.session_state["editing_company"] = None
-            else:
-                st.session_state["editing_company"] = row["Company Name"]
+            st.session_state["editing_company"] = row["Company Name"] if st.session_state["editing_company"] != row["Company Name"] else None
 
         if cols[3].button("❌ Delete", key=f"del_{key_prefix}"):
             st.session_state["delete_candidate"] = row["Company Name"]
