@@ -42,10 +42,11 @@ if uploaded_file:
         if not all(col in df_uploaded.columns for col in expected_cols):
             st.sidebar.error(f"CSV missing required columns: {expected_cols}")
         else:
-            # Convert Yes/No strings to booleans
+            # Convert Yes/No strings to booleans and fill missing as False
             for q in questions:
                 if df_uploaded[q].dtype == object:
                     df_uploaded[q] = df_uploaded[q].map({"Yes": True, "No": False})
+                df_uploaded[q] = df_uploaded[q].fillna(False)
             st.session_state["companies"] = df_uploaded[expected_cols].to_dict(orient="records")
             st.success(f"Loaded {len(st.session_state['companies'])} companies from file.")
             st.sidebar.info("⚠️ Please remove the uploaded CSV to maintain proper working order.")
@@ -79,10 +80,16 @@ search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
 # --- Main Table ---
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
+
+    # Ensure all missing values are False
+    for q in questions:
+        df[q] = df[q].fillna(False)
+
     df["Score"] = df.apply(compute_score, axis=1)
+    df["Score"] = df["Score"].fillna(0)
     max_score = len(questions)
     df["Score (%)"] = round((df["Score"] / max_score) * 100, 2)
-    df["Rank"] = df["Score"].rank(ascending=False, method="min").astype(int)
+    df["Rank"] = df["Score"].rank(ascending=False, method="min").fillna(len(df)+1).astype(int)
 
     # Filter by search
     if search_term:
