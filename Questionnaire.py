@@ -76,8 +76,6 @@ search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
     df["Score"] = df.apply(compute_score, axis=1)
-    max_score = len(questions)
-    df["Score (%)"] = round((df["Score"] / max_score) * 100, 2)
     df["Rank"] = df["Score"].rank(ascending=False, method="min").astype(int)
 
     # Filter by search
@@ -99,26 +97,27 @@ if st.session_state["companies"]:
 
     st.header(f"📊 Company Scores & Ranking ({len(df)} shown)")
 
+    max_score = len(questions)
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
 
         # Determine color
-        if row["Score (%)"] >= 80:
+        if row["Score"] / max_score >= 0.8:
             color = "green"
-        elif row["Score (%)"] >= 50:
+        elif row["Score"] / max_score >= 0.5:
             color = "orange"
         else:
             color = "red"
 
         cols = st.columns([5, 2, 1, 1])
-        # Company name with color and percentage
+        # Company name with color
         cols[0].markdown(
-            f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score} ({row['Score (%)']}%)",
+            f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score}",
             unsafe_allow_html=True
         )
 
         # Colored progress bar using HTML
-        progress_percentage = int(row["Score (%)"])
+        progress_percentage = int((row["Score"] / max_score) * 100)
         progress_html = f"""
             <div style='background-color:#e0e0e0; border-radius:5px; width:100%; height:20px;'>
                 <div style='width:{progress_percentage}%; background-color:{color}; height:100%; border-radius:5px; text-align:right; color:white; font-weight:bold; padding-right:5px;'>{progress_percentage}%</div>
