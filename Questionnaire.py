@@ -3,7 +3,7 @@ import pandas as pd
 import io
 
 st.set_page_config(layout="wide")
-st.title("📝 Company Preliminary Sorting Dashboard")
+st.title("📝 Company Commercialization Scoring Dashboard")
 
 # --- Questions ---
 questions = [
@@ -54,7 +54,8 @@ with st.form("add_form"):
     new_name = st.text_input("Company Name")
     new_answers = {}
     for q in questions:
-        new_answers[q] = st.radio(q, ["Yes", "No"], index=1, horizontal=True, key=f"add_{q}") == "Yes"
+        # Default answer = Yes
+        new_answers[q] = st.radio(q, ["Yes", "No"], index=0, horizontal=True, key=f"add_{q}") == "Yes"
     add_submitted = st.form_submit_button("Add Company")
     if add_submitted:
         if not new_name.strip():
@@ -96,12 +97,21 @@ if st.session_state["companies"]:
 
     st.header(f"📊 Company Scores & Ranking ({len(df)} shown)")
 
+    max_score = len(questions)
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
         cols = st.columns([5, 2, 1, 1])
-        cols[0].markdown(f"**{row['Company Name']}** — Rank: {row['Rank']} — Score: {row['Score']} / {len(questions)}")
-        progress = row["Score"] / len(questions)
-        cols[1].progress(min(progress, 1.0))
+
+        # Color-code the company name based on score
+        if row["Score"] / max_score >= 0.8:
+            color = "green"
+        elif row["Score"] / max_score >= 0.5:
+            color = "orange"
+        else:
+            color = "red"
+
+        cols[0].markdown(f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score}", unsafe_allow_html=True)
+        cols[1].progress(min(row["Score"] / max_score, 1.0))
 
         if cols[2].button("✏️ Edit", key=f"edit_{key_prefix}"):
             if st.session_state["editing_company"] == row["Company Name"]:
@@ -117,7 +127,8 @@ if st.session_state["companies"]:
             with st.form(f"edit_form_{key_prefix}"):
                 edited_answers = {}
                 for q in questions:
-                    edited_answers[q] = st.radio(q, ["Yes", "No"], index=1 if row[q] else 0,
+                    # Default = original user answer
+                    edited_answers[q] = st.radio(q, ["Yes", "No"], index=0 if row[q] else 1,
                                                  horizontal=True, key=f"edit_{key_prefix}_{q}") == "Yes"
                 submitted = st.form_submit_button("Save Changes")
                 canceled = st.form_submit_button("Cancel")
