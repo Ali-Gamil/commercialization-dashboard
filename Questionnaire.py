@@ -3,7 +3,7 @@ import pandas as pd
 import io
 
 st.set_page_config(layout="wide")
-st.title("📝 Company Commercialization Scoring Dashboard")
+st.title("📝 Company Preliminary Sorting Dashboard")
 
 # --- Questions ---
 questions = [
