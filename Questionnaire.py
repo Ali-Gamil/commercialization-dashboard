@@ -60,7 +60,7 @@ with st.form("add_form"):
     new_answers = {}
     for q in questions:
         # Default answer = Yes
-        new_answers[q] = st.radio(q, ["Yes", "No"], index=0, horizontal=True, key=f"add_{q}") == "Yes"
+        new_answers[q] = st.radio(q, ["Yes", "No"], index=0, horizontal=True, key=f"add_{q}") == True
     add_submitted = st.form_submit_button("Add Company")
     if add_submitted:
         if not new_name.strip():
@@ -88,7 +88,6 @@ if st.session_state["companies"]:
     df["Score"] = df.apply(compute_score, axis=1)
     df["Score"] = df["Score"].fillna(0)
     max_score = len(questions)
-    df["Score (%)"] = round((df["Score"] / max_score) * 100, 2)
     df["Rank"] = df["Score"].rank(ascending=False, method="min").fillna(len(df)+1).astype(int)
 
     # Filter by search
@@ -114,22 +113,22 @@ if st.session_state["companies"]:
         key_prefix = f"company_{row['Company Name']}"
 
         # Determine color
-        if row["Score (%)"] >= 80:
+        if row["Score"] / max_score >= 0.8:
             color = "green"
-        elif row["Score (%)"] >= 50:
+        elif row["Score"] / max_score >= 0.5:
             color = "orange"
         else:
             color = "red"
 
         cols = st.columns([5, 2, 1, 1])
-        # Company name with color
+        # Company name without percentage
         cols[0].markdown(
-            f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score} ({row['Score (%)']}%)",
+            f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score}",
             unsafe_allow_html=True
         )
 
         # Colored progress bar using HTML
-        progress_percentage = int(row["Score (%)"])
+        progress_percentage = int((row["Score"] / max_score) * 100)
         progress_html = f"""
             <div style='background-color:#e0e0e0; border-radius:5px; width:100%; height:20px;'>
                 <div style='width:{progress_percentage}%; background-color:{color}; height:100%; border-radius:5px; text-align:right; color:white; font-weight:bold; padding-right:5px;'>{progress_percentage}%</div>
@@ -151,7 +150,7 @@ if st.session_state["companies"]:
                 for q in questions:
                     # Default = original user answer
                     edited_answers[q] = st.radio(q, ["Yes", "No"], index=0 if row[q] else 1,
-                                                 horizontal=True, key=f"edit_{key_prefix}_{q}") == "Yes"
+                                                 horizontal=True, key=f"edit_{key_prefix}_{q}") == True
                 submitted = st.form_submit_button("Save Changes")
                 canceled = st.form_submit_button("Cancel")
                 if submitted:
