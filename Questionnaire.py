@@ -42,6 +42,10 @@ if uploaded_file:
         if not all(col in df_uploaded.columns for col in expected_cols):
             st.sidebar.error(f"CSV missing required columns: {expected_cols}")
         else:
+            # Convert Yes/No strings to booleans
+            for q in questions:
+                if df_uploaded[q].dtype == object:
+                    df_uploaded[q] = df_uploaded[q].map({"Yes": True, "No": False})
             st.session_state["companies"] = df_uploaded[expected_cols].to_dict(orient="records")
             st.success(f"Loaded {len(st.session_state['companies'])} companies from file.")
             st.sidebar.info("⚠️ Please remove the uploaded CSV to maintain proper working order.")
@@ -76,6 +80,8 @@ search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
     df["Score"] = df.apply(compute_score, axis=1)
+    max_score = len(questions)
+    df["Score (%)"] = round((df["Score"] / max_score) * 100, 2)
     df["Rank"] = df["Score"].rank(ascending=False, method="min").astype(int)
 
     # Filter by search
@@ -97,14 +103,13 @@ if st.session_state["companies"]:
 
     st.header(f"📊 Company Scores & Ranking ({len(df)} shown)")
 
-    max_score = len(questions)
     for idx, row in df.reset_index(drop=True).iterrows():
         key_prefix = f"company_{row['Company Name']}"
 
         # Determine color
-        if row["Score"] / max_score >= 0.8:
+        if row["Score (%)"] >= 80:
             color = "green"
-        elif row["Score"] / max_score >= 0.5:
+        elif row["Score (%)"] >= 50:
             color = "orange"
         else:
             color = "red"
@@ -112,12 +117,12 @@ if st.session_state["companies"]:
         cols = st.columns([5, 2, 1, 1])
         # Company name with color
         cols[0].markdown(
-            f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score}",
+            f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score} ({row['Score (%)']}%)",
             unsafe_allow_html=True
         )
 
         # Colored progress bar using HTML
-        progress_percentage = int((row["Score"] / max_score) * 100)
+        progress_percentage = int(row["Score (%)"])
         progress_html = f"""
             <div style='background-color:#e0e0e0; border-radius:5px; width:100%; height:20px;'>
                 <div style='width:{progress_percentage}%; background-color:{color}; height:100%; border-radius:5px; text-align:right; color:white; font-weight:bold; padding-right:5px;'>{progress_percentage}%</div>
