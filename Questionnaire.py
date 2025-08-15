@@ -19,7 +19,6 @@ questions = [
     "Does the company have access to necessary equipment, facilities, or technology?"
 ]
 
-# --- Score computation ---
 def compute_score(row):
     return sum(row[q] for q in questions)
 
@@ -48,8 +47,20 @@ if uploaded_file:
                 if df_uploaded[q].dtype == object:
                     df_uploaded[q] = df_uploaded[q].map({"Yes": True, "No": False})
                 df_uploaded[q] = df_uploaded[q].fillna(False)
-            st.session_state["companies"] = df_uploaded[expected_cols].to_dict(orient="records")
-            st.success(f"Loaded {len(st.session_state['companies'])} companies from file.")
+
+            # Merge with existing companies without duplicates
+            existing_names = {c["Company Name"].lower() for c in st.session_state["companies"]}
+            new_companies = []
+            for _, row in df_uploaded.iterrows():
+                if row["Company Name"].strip().lower() not in existing_names:
+                    new_companies.append(row[expected_cols].to_dict())
+                else:
+                    st.warning(f"Company '{row['Company Name']}' already exists and was skipped.")
+
+            if new_companies:
+                st.session_state["companies"].extend(new_companies)
+                st.success(f"Added {len(new_companies)} new companies from CSV.")
+
             st.sidebar.info("⚠️ Please remove the uploaded CSV to maintain proper working order.")
     except Exception as e:
         st.sidebar.error(f"Failed to load CSV: {e}")
@@ -60,8 +71,7 @@ with st.form("add_form"):
     new_name = st.text_input("Company Name")
     new_answers = {}
     for q in questions:
-        # Default answer = Yes
-        new_answers[q] = st.radio(q, ["Yes", "No"], index=0, horizontal=True, key=f"add_{q}") == "Yes"
+        new_answers[q] = st.radio(q, ["Yes", "No"], index=0, horizontal=True, key=f"add_{q}") == True
     add_submitted = st.form_submit_button("Add Company")
     if add_submitted:
         if not new_name.strip():
@@ -81,10 +91,13 @@ search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
 # --- Main Table ---
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
+
+    # Ensure all missing values are False
     for q in questions:
         df[q] = df[q].fillna(False)
 
     df["Score"] = df.apply(compute_score, axis=1)
+    df["Score"] = df["Score"].fillna(0)
     max_score = len(questions)
     df["Rank"] = df["Score"].rank(ascending=False, method="min").fillna(len(df)+1).astype(int)
 
@@ -102,7 +115,8 @@ if st.session_state["companies"]:
         df = df.sort_values(["Score", "Company Name"], ascending=[False, True])
     else:
         df = df.assign(SortKey=df["Company Name"].str.lower())
-        df = df.sort_values("SortKey").drop(columns=["SortKey"])
+        df = df.sort_values("SortKey")
+        df = df.drop(columns=["SortKey"])
 
     st.header(f"📊 Company Scores & Ranking ({len(df)} shown)")
 
@@ -144,16 +158,17 @@ if st.session_state["companies"]:
             with st.form(f"edit_form_{key_prefix}"):
                 edited_answers = {}
                 for q in questions:
-                    # Default = original user answer
                     edited_answers[q] = st.radio(q, ["Yes", "No"], index=0 if row[q] else 1,
-                                                 horizontal=True, key=f"edit_{key_prefix}_{q}") == "Yes"
+                                                 horizontal=True, key=f"edit_{key_prefix}_{q}") == True
                 submitted = st.form_submit_button("Save Changes")
                 canceled = st.form_submit_button("Cancel")
                 if submitted:
                     idx_to_update = next((i for i, c in enumerate(st.session_state["companies"]) if c["Company Name"] == row["Company Name"]), None)
                     if idx_to_update is not None:
+                        companies_copy = st.session_state["companies"].copy()
                         for q, val in edited_answers.items():
-                            st.session_state["companies"][idx_to_update][q] = val
+                            companies_copy[idx_to_update][q] = val
+                        st.session_state["companies"] = companies_copy
                         st.success(f"Updated '{row['Company Name']}'")
                         st.session_state["editing_company"] = None
                         st.stop()
