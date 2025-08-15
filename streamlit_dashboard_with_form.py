@@ -43,9 +43,8 @@ if "delete_candidate" not in st.session_state:
     st.session_state["delete_candidate"] = None
 
 # --- Data Upload ---
-st.sidebar.header("🔄 Upload / Reset Dataset")
+st.sidebar.header("🔄 Upload / Download Dataset")
 uploaded_file = st.sidebar.file_uploader("Upload CSV to load companies", type=["csv"])
-
 if uploaded_file:
     try:
         df_uploaded = pd.read_csv(uploaded_file)
@@ -53,12 +52,9 @@ if uploaded_file:
         if not all(col in df_uploaded.columns for col in expected_cols):
             st.sidebar.error(f"CSV missing required columns: {expected_cols}")
         else:
-            # Save original if first upload
-            if st.session_state["original_companies"] is None:
-                st.session_state["original_companies"] = df_uploaded[expected_cols].to_dict(orient="records")
-            # Always load editable copy
-            st.session_state["companies"] = [dict(row) for row in st.session_state["original_companies"]]
+            st.session_state["companies"] = df_uploaded[expected_cols].to_dict(orient="records")
             st.success(f"Loaded {len(st.session_state['companies'])} companies from file.")
+            st.sidebar.info("⚠️ Please remove the uploaded CSV to maintain proper working order.")
     except Exception as e:
         st.sidebar.error(f"Failed to load CSV: {e}")
 
@@ -67,10 +63,6 @@ if st.session_state["original_companies"]:
     if st.sidebar.button("♻️ Restore from Original CSV"):
         st.session_state["companies"] = [dict(row) for row in st.session_state["original_companies"]]
         st.success("Data restored from the original uploaded CSV.")
-
-# Reminder to remove CSV
-if st.session_state["original_companies"]:
-    st.sidebar.warning("⚠️ Reminder: Remove the original uploaded CSV if you want to avoid it being reloaded on refresh.")
 
 # --- Add Company ---
 st.header("➕ Add New Company")
