@@ -19,6 +19,7 @@ questions = [
     "Does the company have access to necessary equipment, facilities, or technology?"
 ]
 
+# --- Score computation ---
 def compute_score(row):
     return sum(row[q] for q in questions)
 
@@ -60,7 +61,7 @@ with st.form("add_form"):
     new_answers = {}
     for q in questions:
         # Default answer = Yes
-        new_answers[q] = st.radio(q, ["Yes", "No"], index=0, horizontal=True, key=f"add_{q}") == True
+        new_answers[q] = st.radio(q, ["Yes", "No"], index=0, horizontal=True, key=f"add_{q}") == "Yes"
     add_submitted = st.form_submit_button("Add Company")
     if add_submitted:
         if not new_name.strip():
@@ -80,13 +81,10 @@ search_term = st.text_input("🔍 Search Companies by Name").strip().lower()
 # --- Main Table ---
 if st.session_state["companies"]:
     df = pd.DataFrame(st.session_state["companies"])
-
-    # Ensure all missing values are False
     for q in questions:
         df[q] = df[q].fillna(False)
 
     df["Score"] = df.apply(compute_score, axis=1)
-    df["Score"] = df["Score"].fillna(0)
     max_score = len(questions)
     df["Rank"] = df["Score"].rank(ascending=False, method="min").fillna(len(df)+1).astype(int)
 
@@ -104,8 +102,7 @@ if st.session_state["companies"]:
         df = df.sort_values(["Score", "Company Name"], ascending=[False, True])
     else:
         df = df.assign(SortKey=df["Company Name"].str.lower())
-        df = df.sort_values("SortKey")
-        df = df.drop(columns=["SortKey"])
+        df = df.sort_values("SortKey").drop(columns=["SortKey"])
 
     st.header(f"📊 Company Scores & Ranking ({len(df)} shown)")
 
@@ -121,7 +118,6 @@ if st.session_state["companies"]:
             color = "red"
 
         cols = st.columns([5, 2, 1, 1])
-        # Company name without percentage
         cols[0].markdown(
             f"**<span style='color:{color}'>{row['Company Name']}</span>** — Rank: {row['Rank']} — Score: {row['Score']} / {max_score}",
             unsafe_allow_html=True
@@ -150,20 +146,14 @@ if st.session_state["companies"]:
                 for q in questions:
                     # Default = original user answer
                     edited_answers[q] = st.radio(q, ["Yes", "No"], index=0 if row[q] else 1,
-                                                 horizontal=True, key=f"edit_{key_prefix}_{q}") == True
+                                                 horizontal=True, key=f"edit_{key_prefix}_{q}") == "Yes"
                 submitted = st.form_submit_button("Save Changes")
                 canceled = st.form_submit_button("Cancel")
                 if submitted:
-                    idx_to_update = None
-                    for i, comp in enumerate(st.session_state["companies"]):
-                        if comp["Company Name"] == row["Company Name"]:
-                            idx_to_update = i
-                            break
+                    idx_to_update = next((i for i, c in enumerate(st.session_state["companies"]) if c["Company Name"] == row["Company Name"]), None)
                     if idx_to_update is not None:
-                        companies_copy = st.session_state["companies"].copy()
                         for q, val in edited_answers.items():
-                            companies_copy[idx_to_update][q] = val
-                        st.session_state["companies"] = companies_copy
+                            st.session_state["companies"][idx_to_update][q] = val
                         st.success(f"Updated '{row['Company Name']}'")
                         st.session_state["editing_company"] = None
                         st.stop()
