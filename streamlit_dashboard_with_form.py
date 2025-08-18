@@ -3,7 +3,7 @@ import pandas as pd
 import io
 
 st.set_page_config(layout="wide")
-st.title("📝 Company Commercialization Scoring Dashboard")
+st.title("✔/❌ Prelimenary Sorting Dashboard")
 
 criteria_info = {
     "Business Model": "How well the company generates and sustains revenue",
