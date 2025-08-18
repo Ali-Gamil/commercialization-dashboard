@@ -3,7 +3,7 @@ import pandas as pd
 import io
 
 st.set_page_config(layout="wide")
-st.title("✔/❌ Prelimenary Sorting Dashboard")
+st.title("✅/❌ Prelimenary Sorting Dashboard")
 
 # --- Questions ---
 questions = [
